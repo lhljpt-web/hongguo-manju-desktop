@@ -2,9 +2,11 @@
 
 Windows 上的第三方漫剧客户端。找剧、播放、缓存，接着上次的进度继续看。
 
-**[下载 0.1.0 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.0/Hongguo-Manju-0.1.0-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.0) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
+**[下载 0.1.1 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.1/Hongguo-Manju-0.1.1-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.1) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
 
 支持 Windows 10 / 11 x64。安装包自带运行组件，无需手机、模拟器或额外配置开发环境。
+
+0.1.1 修复搜索 HTTP 403，恢复关键词查询及分页。[修复与验证记录](docs/search-fix-2026-11-02.md)
 
 > 本项目独立维护，与红果官方及其运营方无隶属或合作关系。作品、品牌和媒体资源归相应权利方所有。
 

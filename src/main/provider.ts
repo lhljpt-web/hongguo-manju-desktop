@@ -88,10 +88,12 @@ function selectedItems(selector: unknown): RecordData[] {
 export class ContentProvider {
   private readonly transport: ApiTransport;
   private readonly fetcher: typeof fetch;
+  private readonly searchPage?: (url:URL)=>Promise<string>;
 
-  constructor(transport: ApiTransport, options: { fetch?: typeof fetch } = {}) {
+  constructor(transport: ApiTransport, options: { fetch?: typeof fetch;searchPage?:(url:URL)=>Promise<string> } = {}) {
     this.transport = transport;
     this.fetcher = options.fetch ?? globalThis.fetch;
+    this.searchPage = options.searchPage;
   }
 
   private async api(path: string, body?: unknown, extra?: Record<string, string | number | boolean>): Promise<RecordData> {
@@ -204,7 +206,8 @@ export class ContentProvider {
     const pageNum=offset/10+1,url=new URL('/api/search/result',WEB_ORIGIN);
     url.searchParams.set('query',query.trim());if(pageNum>1)url.searchParams.set('page',String(pageNum));
     let model:RecordData;
-    try{model=safeJson(await this.page(url,false,'application/json'))}catch(error){if(error instanceof ProviderError)throw error;fail('INVALID_SEARCH_DATA','搜索来源返回的数据格式无效。')}
+    const source=await (this.searchPage?this.searchPage(url):this.page(url,false,'application/json'));
+    try{model=safeJson(source)}catch{fail('INVALID_SEARCH_DATA','搜索来源返回的数据格式无效。')}
     if(!record(model)||!Array.isArray(model.searchList)||model.code!=null||model.isSuccess===false)fail('INVALID_SEARCH_DATA','搜索来源没有返回有效作品列表。');
     if(model.pageNum!==pageNum||!Number.isSafeInteger(model.totalPages)||model.totalPages<0||typeof model.hasMore!=='boolean'||
        model.hasMore!==(pageNum<model.totalPages)||(model.totalPages===0&&(pageNum!==1||model.searchList.length!==0))||

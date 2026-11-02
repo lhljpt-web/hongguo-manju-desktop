@@ -1,3 +1,4 @@
+import {SearchBrowser} from './search-browser';
 import {app,BrowserWindow,ipcMain,protocol,dialog,shell,Tray,Menu,nativeImage} from 'electron';import path from 'node:path';import {LibraryStore} from './library';import {MediaCache} from './media';import {CacheManager} from './cache-manager';import {Signer,Transport} from './transport';import {ContentProvider,ProviderError} from './provider';import {AppError} from './errors';import type {Result,Work,Progress,Board} from '../shared/types';
 import {trayIcon} from './tray-icon';
 import {RecommendationService} from './recommendations';
@@ -6,7 +7,7 @@ import {autoUpdater} from 'electron-updater';import {UpdateService} from './upda
 protocol.registerSchemesAsPrivileged([{scheme:'manju-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true,corsEnabled:true}}]);
 app.setName('红果漫剧桌面版');if(process.env.HONGGUO_TEST_DATA)app.setPath('userData',process.env.HONGGUO_TEST_DATA);
 if(!app.requestSingleInstanceLock()){app.quit()}else{
- let window:BrowserWindow|null=null;let signer:Signer,media:MediaCache,library:LibraryStore,updates:UpdateService,cache:CacheManager;let quitting=false;let installing=false;let exiting=false;let tray:Tray|null=null;const diagnostics=new Diagnostics();
+ let window:BrowserWindow|null=null;let signer:Signer,media:MediaCache,library:LibraryStore,updates:UpdateService,cache:CacheManager;let quitting=false;let installing=false;let exiting=false;let tray:Tray|null=null;const diagnostics=new Diagnostics();const searchBrowser=new SearchBrowser();
  async function result<T>(fn:()=>Promise<T>|T):Promise<Result<T>>{try{return {ok:true,data:await fn()}}catch(error){if(error instanceof AppError||error instanceof ProviderError)return {ok:false,error:{code:String((error as any).code),message:String((error as any).message)}};return {ok:false,error:{code:'UNAVAILABLE',message:'操作暂未完成，请重试'}}}}
  function handle(channel:string,fn:(...args:any[])=>unknown){ipcMain.handle(channel,async(event,...args)=>{if(!window||event.sender!==window.webContents)return {ok:false,error:{code:'IPC_DENIED',message:'请求无效'}};const response=await result(()=>fn(...args));if(!response.ok)diagnostics.record({stage:'ipc',code:response.error?.code});return response})}
  function createWindow(){
@@ -15,7 +16,7 @@ if(!app.requestSingleInstanceLock()){app.quit()}else{
   window.loadFile(path.join(__dirname,'../renderer/index.html'));window.on('show',()=>window?.webContents.send('window-background',false));window.on('close',event=>{if(!exiting&&tray&&cache?.closeToTray){event.preventDefault();window?.webContents.send('window-background',true);window?.hide()}});window.on('closed',()=>{window=null});
  }
  app.whenReady().then(async()=>{
-  const runtime=app.isPackaged?path.join(process.resourcesPath,'runtime-bundle'):path.join(app.getAppPath(),'runtime-bundle');signer=new Signer(runtime,path.join(app.getPath('userData'),'runtime-work'));const provider=new ContentProvider(new Transport(signer,app.getPath('userData'))),recommendations=new RecommendationService(provider);library=new LibraryStore(app.getPath('userData'));await library.init();media=new MediaCache(await CacheManager.directory(app.getPath('userData')),path.join(runtime,'ffmpeg.exe'),(id,quality)=>provider.getResource(id,quality),{concurrency:4,diagnostics});await media.init();cache=new CacheManager(app.getPath('userData'),media,()=>library.snapshot().history);await cache.init();
+  const runtime=app.isPackaged?path.join(process.resourcesPath,'runtime-bundle'):path.join(app.getAppPath(),'runtime-bundle');signer=new Signer(runtime,path.join(app.getPath('userData'),'runtime-work'));const provider=new ContentProvider(new Transport(signer,app.getPath('userData')),{searchPage:url=>searchBrowser.read(url)}),recommendations=new RecommendationService(provider);library=new LibraryStore(app.getPath('userData'));await library.init();media=new MediaCache(await CacheManager.directory(app.getPath('userData')),path.join(runtime,'ffmpeg.exe'),(id,quality)=>provider.getResource(id,quality),{concurrency:4,diagnostics});await media.init();cache=new CacheManager(app.getPath('userData'),media,()=>library.snapshot().history);await cache.init();
   protocol.handle('manju-media',request=>media.response(request.url,request.headers.get('range')));
   handle('buffer-episodes',(ids:string[])=>media.setBufferWindow(ids));
   handle('buffer-state',()=>media.bufferState());handle('buffer-retry',()=>media.retryBuffer());
@@ -44,5 +45,5 @@ if(!app.requestSingleInstanceLock()){app.quit()}else{
   if(app.isPackaged){setTimeout(()=>void updates.check(),2000).unref();setInterval(()=>void updates.check(),4*60*60*1000).unref();}
  }).catch(()=>{dialog.showErrorBox('红果漫剧启动失败','应用数据或运行组件无法读取，请检查安装是否完整，以及应用数据目录是否可写。');app.quit()});
  app.on('second-instance',()=>{window?.show();window?.focus()});app.on('window-all-closed',()=>app.quit());
- app.on('before-quit',event=>{if(quitting)return;event.preventDefault();exiting=true;if(window&&!window.isDestroyed()){window.close();return}quitting=true;Promise.allSettled([signer?.shutdown(),media?.close(),library?.flush(),cache?.flush()]).then(results=>{tray?.destroy();if(installing&&results.some(result=>result.status==='rejected')){dialog.showErrorBox('暂未安装更新','后台组件未能退出或观看记录未能保存，已停止安装。缓存会保留，请彻底退出软件后重新安装。');app.quit();}else if(installing){updates.installAfterShutdown();}else app.quit();})});
+ app.on('before-quit',event=>{if(quitting)return;event.preventDefault();exiting=true;searchBrowser.close();if(window&&!window.isDestroyed()){window.close();return}quitting=true;Promise.allSettled([signer?.shutdown(),media?.close(),library?.flush(),cache?.flush()]).then(results=>{tray?.destroy();if(installing&&results.some(result=>result.status==='rejected')){dialog.showErrorBox('暂未安装更新','后台组件未能退出或观看记录未能保存，已停止安装。缓存会保留，请彻底退出软件后重新安装。');app.quit();}else if(installing){updates.installAfterShutdown();}else app.quit();})});
 }

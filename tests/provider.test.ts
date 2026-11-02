@@ -230,3 +230,11 @@ test('share response missing page data retries the same original URL only once',
  await assert.rejects(make(transport(()=>detail()),(async()=>{failedCalls++;return new Response('<html></html>')}) as typeof fetch).resolveShare(url),errorCode('PAGE_DATA_MISSING'));
  assert.equal(failedCalls,2);
 });
+
+test('browser search data uses the same validated pagination and exact work IDs without a raw API fetch',async()=>{
+ let pages=0,raw=0;
+ const provider=new providerModule.ContentProvider(transport(()=>null),{fetch:async()=>{raw++;throw Error('raw search is rejected')},searchPage:async(url:URL)=>{pages++;const pageNum=Number(url.searchParams.get('page')||1);return JSON.stringify({searchList:[{name:'测试漫剧',video_data:{series_id:SID,episode_cnt:2}}],pageNum,totalPages:2,hasMore:pageNum===1})}});
+ assert.equal((await provider.search('测试漫剧')).items[0].id,SID);
+ assert.equal((await provider.search('测试漫剧',10)).hasMore,false);
+ assert.equal(pages,2);assert.equal(raw,0);
+});
