@@ -1,0 +1,14 @@
+import {Signer,Transport} from '../src/main/transport';import {ContentProvider} from '../src/main/provider';import {MediaCache} from '../src/main/media';import {mkdir,writeFile} from 'node:fs/promises';import path from 'node:path';import {spawn} from 'node:child_process';import assert from 'node:assert/strict';
+const output=path.resolve(process.env.QA_OUTPUT||`outputs/native-playback-qa-${Date.now()}`);await mkdir(output,{recursive:true});const runtime=path.resolve('runtime-bundle');const signer=new Signer(runtime,path.join(output,'runtime'));const provider=new ContentProvider(new Transport(signer,path.join(output,'profile')));const media=new MediaCache(path.join(output,'media'),path.join(runtime,'ffmpeg.exe'),(id,q)=>provider.getResource(id,q),{progressive:false});const events:unknown[]=[];
+const log=(e:unknown)=>{events.push(e);console.log(JSON.stringify(e))};
+try{
+ await media.init();const first=await provider.getSeries('7695370827507698713');const catalog=await provider.catalog('recommend');const other=catalog.items.find(w=>w.id!==first.id)!;const second=await provider.getSeries(other.id);
+ for(const [series,orders] of [[first,[1,2,78,155]],[second,[1,2]]] as const){
+  for(const order of orders){const episode=series.episodes[order-1];assert.ok(episode);const resource=await provider.getResource(episode.id);assert.equal(resource.episodeId,episode.id);assert.ok(resource.duration>0);if(episode.duration)assert.ok(Math.abs(resource.duration-episode.duration)<2);
+   const playback=await media.prepare(episode.id);assert.equal(playback.progressive,undefined);const key=new URL(playback.url).pathname.slice(1),file=path.join(output,'media',key+'.mp4');
+   const result=await new Promise<{exit:number|null;progress:string}>(resolve=>{let progress='';const child=spawn(path.join(runtime,'ffmpeg.exe'),['-v','error','-i',file,'-progress','pipe:1','-f','null','-'],{windowsHide:true,stdio:['ignore','pipe','ignore']});child.stdout.on('data',d=>{progress+=d});child.on('close',exit=>resolve({exit,progress}));child.on('error',()=>resolve({exit:-1,progress}))});assert.equal(result.exit,0);const times=[...result.progress.matchAll(/out_time_us=(\d+)/g)].map(m=>Number(m[1])/1e6);assert.ok(Math.max(...times)>=resource.duration-1,'decode must reach the ending');
+   const range=await media.response(playback.url,'bytes=0-1023');assert.equal(range.status,206);assert.equal((await range.arrayBuffer()).byteLength,1024);log({title:series.title,seriesId:series.id,order,episodeId:episode.id,duration:resource.duration,definition:resource.definition,codec:resource.codec,decodedTo:Math.max(...times),range:206});
+  }
+ }
+ await writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,events},null,2));console.log(JSON.stringify({passed:true,output}));
+}catch(e:any){await writeFile(path.join(output,'report.json'),JSON.stringify({passed:false,events,error:e.code||e.message},null,2));throw e}finally{await media.close();await signer.shutdown()}

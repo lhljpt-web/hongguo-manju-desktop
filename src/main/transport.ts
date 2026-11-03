@@ -72,13 +72,14 @@ export class Transport implements ApiTransport {
   if(playback){
    const value=body as {video_id?:unknown};
    if(!value||typeof value.video_id!=='string'||!/^\d{8,24}$/.test(value.video_id))throw new AppError('INVALID_INPUT','播放分集编号无效');
-   requestBody={mixed_video_id_map:{'1':[value.video_id]},biz_param:{detail_page_version:0,device_level:3,disable_digg_stat:false,disable_video_relate_book:false,need_all_video_definition:true,need_mp4_align:false,use_os_player:false,use_server_dns:false,video_platform:1024}};
+   requestBody=undefined;
   }
-  const url=new URL(playback?'/novel/player/multi_video_model/v1/':endpoint,playback?'https://api5-normal-sinfonlineb.fqnovel.com':'https://api5-normal-sinfonlinea.fqnovel.com');
+  const url=new URL(playback?'/reading/bookapi/video_tab/multi_video_model/v1/':endpoint,playback?'https://api5-normal-sinfonlineb.fqnovel.com':'https://api5-normal-sinfonlinea.fqnovel.com');
   for(const [k,v] of Object.entries({aid:'8704',app_name:'novelread',version_code:'72232',version_name:'7.2.2.32',channel:'audit',device_platform:'android',os_version:'12',update_version_code:'72232',_rticket:Date.now(),...extra}))url.searchParams.set(k,String(v));
-  // Verified public guest batch contract, 2026-10-22. Reuse the existing
-  // installation identity; normalize only the requested episode's envelope.
+  // The old POST route now returns empty bodies. The current GET route uses
+  // flat query fields and a video_model_data envelope (verified 2026-11-03).
   if(playback){url.search='';for(const [key,value] of Object.entries({aid:'8662',app_name:'novelread',version_code:'73532',version_name:'7.3.5.32',manifest_version_code:'73532',update_version_code:'73532',channel:'update_64',device_platform:'android',os:'android',ssmix:'a',device_type:'25053RT47C',device_brand:'Redmi',language:'zh',os_api:'36',os_version:'16',resolution:'1280*2772',dpi:'520',ac:'wifi',...await this.identity()}))url.searchParams.set(key,value)}
+  if(playback)for(const [key,value] of Object.entries({video_id:(body as {video_id:string}).video_id,video_id_type:'0',device_level:'1',need_all_video_definition:'1',need_mp4_align:'0',use_os_player:'0',video_platform:'1024',source:'0',from_video_id:'',_rticket:String(Date.now())}))url.searchParams.set(key,value);
   const payload=requestBody===undefined?undefined:JSON.stringify(requestBody);const headers:Record<string,string>={'user-agent':'HongguoTV/0.1','content-type':'application/json; charset=utf-8',...(payload?{'x-ss-stub':createHash('md5').update(payload).digest('hex').toUpperCase()}: {})};
   if(playback)Object.assign(headers,{'user-agent':'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)',accept:'application/json','x-xs-from-web':'0','sdk-version':'2'});
   const signatures=playback?{}:await this.signer.sign(url.href,headers);let response:Response;
@@ -93,8 +94,9 @@ export class Transport implements ApiTransport {
    throw new AppError('API_EMPTY','内容来源返回空结果，请稍后重试');
   }if(text.length>8*1024*1024)throw new AppError('API_FORMAT','内容返回过大');
   let json:any;try{json=safeJson(text)}catch{throw new AppError('API_FORMAT','内容来源的数据格式发生变化')}
-  if(json.code!==undefined&&json.code!==0)throw new AppError('API_UNAVAILABLE',`内容来源暂不可用（代码 ${Number(json.code)||'未知'}）`);
-  if(playback){const item=json.data?.[(body as {video_id:string}).video_id];if(json.code!==0||!item||typeof item!=='object'||!item.video_model)throw new AppError('API_FORMAT','内容来源未返回当前分集的播放资源');return {...json,data:item}}
+  const code=json.code??json.Code??json.BaseResp?.StatusCode;
+  if(code!==undefined&&code!==0)throw new AppError('API_UNAVAILABLE',`内容来源暂不可用（代码 ${Number(code)||'未知'}）`);
+  if(playback){const item=json.data?.video_model_data?.[(body as {video_id:string}).video_id];if(code!==0||!item||typeof item!=='object'||!item.video_model)throw new AppError('API_FORMAT','内容来源未返回当前分集的播放资源');return {...json,code:0,data:item}}
   return json;
  }
 }

@@ -2,11 +2,11 @@
 
 Windows 上的第三方漫剧客户端。找剧、播放、缓存，接着上次的进度继续看。
 
-**[下载 0.1.1 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.1/Hongguo-Manju-0.1.1-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.1) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
+**[下载 0.1.2 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.2/Hongguo-Manju-0.1.2-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.2) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
 
 支持 Windows 10 / 11 x64。安装包自带运行组件，无需手机、模拟器或额外配置开发环境。
 
-0.1.1 修复搜索 HTTP 403，恢复关键词查询及分页。[修复与验证记录](docs/search-fix-2026-11-02.md)
+0.1.2 适配当前原生播放接口，恢复此前失败的中间集与末集；保留 0.1.1 的搜索修复。[播放恢复记录](docs/playback-fix-2026-11-03.md)
 
 > 本项目独立维护，与红果官方及其运营方无隶属或合作关系。作品、品牌和媒体资源归相应权利方所有。
 
@@ -66,6 +66,8 @@ npm run build
 准备好运行组件后可执行 npm start 或 npm run package:win。自动更新与发布校验见 [维护说明](docs/auto-update.md)。历史故障调查与验证记录保存在 docs 目录，不代表当前版本的全部可用范围。
 
 ## 参考与致谢
+
+- [tsukiyo-zero/hongguoTV](https://github.com/tsukiyo-zero/hongguoTV)：0.1.2 原生播放 `video_tab` 接口迁移线索；本机对指定分集独立复现并验证。
 
 - [渠道有数 · hongguo-desktop](https://github.com/waligoraamodio288-rgb/hongguo-desktop-releases)：桌面功能组织与 TV 版请求结构的研究参考；这是公开发行仓库，本项目不是其源码分支。
 - [hongguo-monorepo](https://github.com/wofanqiang/hongguo-monorepo)：多端架构和内容接入流程参考。
