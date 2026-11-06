@@ -4,15 +4,15 @@
 
 ## 下载与安装
 
-当前正式版 **0.1.2**，支持 Windows 10 / 11 x64（64 位）。
+当前正式版 **0.1.3**，支持 Windows 10 / 11 x64（64 位）。
 
-**[下载 Windows 安装包](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.2/Hongguo-Manju-0.1.2-Windows-x64.exe)**
+**[下载 Windows 安装包](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.3/Hongguo-Manju-0.1.3-Windows-x64.exe)**
 
 | 文件 | 用途 |
 | --- | --- |
-| Hongguo-Manju-0.1.2-Windows-x64.exe | Windows 安装程序，普通用户下载此文件 |
-| SHA256SUMS-0.1.2.txt | 文件完整性校验 |
-| Hongguo-Manju-0.1.2-source.zip | 对应版本的开发源码 |
+| Hongguo-Manju-0.1.3-Windows-x64.exe | Windows 安装程序，普通用户下载此文件 |
+| SHA256SUMS-0.1.3.txt | 文件完整性校验 |
+| Hongguo-Manju-0.1.3-source.zip | 对应版本的开发源码 |
 | latest.yml | 软件更新元数据，无需手动打开 |
 
 等待 .exe 下载完成后双击，按向导选择目录，安装后从桌面或开始菜单打开「红果漫剧桌面版」。安装包自带运行组件，无需另外安装 Node.js、Python、Java、手机 APP 或模拟器。暂不提供 macOS、Linux、Windows ARM64 版本。
@@ -20,10 +20,10 @@
 安装包未配置 Windows 发布者代码签名。需要核对文件完整性时，在下载目录打开 PowerShell：
 
 ~~~powershell
-Get-FileHash -LiteralPath '.\Hongguo-Manju-0.1.2-Windows-x64.exe' -Algorithm SHA256
+Get-FileHash -LiteralPath '.\Hongguo-Manju-0.1.3-Windows-x64.exe' -Algorithm SHA256
 ~~~
 
-将结果与同一发布页面的 SHA256SUMS-0.1.2.txt 对照；字母大小写不影响比较。
+将结果与同一发布页面的 SHA256SUMS-0.1.3.txt 对照；字母大小写不影响比较。
 
 ## 从旧测试版迁移
 

@@ -1,0 +1,37 @@
+{
+  "source": "woshishiq1/drpys 22261ad via tsukiyo-zero/hongguoTV server/vendor/hongguo.cjs; synthetic identity, fixed clock and random=0.5, offline oracle",
+  "vectors": [
+    {
+      "values": {
+        "device_id": "1123456789012345678",
+        "iid": "1123456789012345677",
+        "version_name": "7.3.5.32",
+        "video_id": "7695386701635537945",
+        "note": "中文 !*'()~"
+      },
+      "now": 1793912345123,
+      "url": "https://example.test/model?device_id=1123456789012345678&iid=1123456789012345677&version_name=7.3.5.32&video_id=7695386701635537945&note=%E4%B8%AD%E6%96%87%20%21%2A%27%28%29~&_rticket=1793912345124",
+      "hashes": {
+        "x-gorgon": "29632e208e096d3673b7825df831f6eb370f27d4f6d45b1f8ad03632d62746f6",
+        "x-helios": "1ac158ccc664e9b75dfdccafe7008f70d5f9a2989f0fae0f6885d789e3a04e1a",
+        "x-medusa": "4d7ee704f32026d8715495536f0eee26e77594471787ce5a712a45c7472ead3d"
+      }
+    },
+    {
+      "values": {
+        "device_id": "1123456789012345679",
+        "iid": "1123456789012345677",
+        "version_name": "7.3.5.32",
+        "video_id": "7695386701635537945",
+        "note": "中文 !*'()~"
+      },
+      "now": 1793912345123,
+      "url": "https://example.test/model?device_id=1123456789012345679&iid=1123456789012345677&version_name=7.3.5.32&video_id=7695386701635537945&note=%E4%B8%AD%E6%96%87%20%21%2A%27%28%29~&_rticket=1793912345126",
+      "hashes": {
+        "x-gorgon": "b285e172632f79089aa0fed66ba91de45361c25fbc807ecf089efb2a7637e99e",
+        "x-helios": "1ac158ccc664e9b75dfdccafe7008f70d5f9a2989f0fae0f6885d789e3a04e1a",
+        "x-medusa": "163b76e91c04dc1e8a3865e03df1e15c0dde279011f91b168fe3af560ae9621f"
+      }
+    }
+  ]
+}

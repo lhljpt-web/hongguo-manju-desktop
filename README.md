@@ -2,11 +2,11 @@
 
 Windows 上的第三方漫剧客户端。找剧、播放、缓存，接着上次的进度继续看。
 
-**[下载 0.1.2 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.2/Hongguo-Manju-0.1.2-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.2) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
+**[下载 0.1.3 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.3/Hongguo-Manju-0.1.3-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.3) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
 
 支持 Windows 10 / 11 x64。安装包自带运行组件，无需手机、模拟器或额外配置开发环境。
 
-0.1.2 适配当前原生播放接口，恢复此前失败的中间集与末集；保留 0.1.1 的搜索修复。[播放恢复记录](docs/playback-fix-2026-11-03.md)
+0.1.3 补全原生播放签名、加入有限的空响应换路重试，并保护失效分集的续播记录。两部作品各抽查首集、中间集、末集，六集 1080p 完整解码通过。部分设备标识仍会被来源返回空结果；原 155 集样本目前仍未恢复，不能据此认定所有作品全集正常。[本轮验证与已知限制](docs/playback-fix-2026-11-06.md)
 
 > 本项目独立维护，与红果官方及其运营方无隶属或合作关系。作品、品牌和媒体资源归相应权利方所有。
 
@@ -67,7 +67,8 @@ npm run build
 
 ## 参考与致谢
 
-- [tsukiyo-zero/hongguoTV](https://github.com/tsukiyo-zero/hongguoTV)：0.1.2 原生播放 `video_tab` 接口迁移线索；本机对指定分集独立复现并验证。
+- [woshishiq1/drpys](https://github.com/woshishiq1/drpys)：0.1.3 播放签名算法块的上游来源（GPL-3.0），经 hongguoTV 的公开副本适配；[改动与许可记录](src/main/vendor/NOTICE.md)。
+- [tsukiyo-zero/hongguoTV](https://github.com/tsukiyo-zero/hongguoTV)：0.1.2 的 `video_tab` 接口迁移线索，以及 0.1.3 播放签名和匿名登记字段的适配依据。
 
 - [渠道有数 · hongguo-desktop](https://github.com/waligoraamodio288-rgb/hongguo-desktop-releases)：桌面功能组织与 TV 版请求结构的研究参考；这是公开发行仓库，本项目不是其源码分支。
 - [hongguo-monorepo](https://github.com/wofanqiang/hongguo-monorepo)：多端架构和内容接入流程参考。

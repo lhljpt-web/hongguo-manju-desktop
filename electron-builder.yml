@@ -6,6 +6,8 @@ directories:
 files:
   - dist/**/*
   - package.json
+  - LICENSE
+  - src/main/vendor/NOTICE.md
 extraResources:
   - from: runtime-bundle
     to: runtime-bundle

@@ -2,6 +2,7 @@ import {mkdirSync} from 'node:fs';import {mkdir,readFile,writeFile,rename,unlink
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';import {createInterface} from 'node:readline';import {createHash,randomInt,randomUUID} from 'node:crypto';import path from 'node:path';
 import type {ApiTransport} from '../shared/types';import {AppError} from './errors';
 import {registerPlayer} from './player-registration';
+import {signPlayback} from './vendor/playback-signing.js';
 type Reply={seq:number;headers?:Record<string,string>;error?:string};
 export class Signer {
  private process:ChildProcessWithoutNullStreams|null=null;private seq=0;private pending=new Map<number,{resolve:(headers:Record<string,string>)=>void;reject:(error:Error)=>void;timer:ReturnType<typeof setTimeout>}>();
@@ -74,18 +75,24 @@ export class Transport implements ApiTransport {
    if(!value||typeof value.video_id!=='string'||!/^\d{8,24}$/.test(value.video_id))throw new AppError('INVALID_INPUT','播放分集编号无效');
    requestBody=undefined;
   }
-  const url=new URL(playback?'/reading/bookapi/video_tab/multi_video_model/v1/':endpoint,playback?'https://api5-normal-sinfonlineb.fqnovel.com':'https://api5-normal-sinfonlinea.fqnovel.com');
+  let url=new URL(playback?'/reading/bookapi/video_tab/multi_video_model/v1/':endpoint,playback?'https://api5-normal-sinfonlineb.fqnovel.com':'https://api5-normal-sinfonlinea.fqnovel.com');
   for(const [k,v] of Object.entries({aid:'8704',app_name:'novelread',version_code:'72232',version_name:'7.2.2.32',channel:'audit',device_platform:'android',os_version:'12',update_version_code:'72232',_rticket:Date.now(),...extra}))url.searchParams.set(k,String(v));
-  // The old POST route now returns empty bodies. The current GET route uses
-  // flat query fields and a video_model_data envelope (verified 2026-11-03).
+  // Finalize the query before signing: the media signature binds the exact
+  // device profile, episode and timestamp, unlike the legacy catalog SDK.
   if(playback){url.search='';for(const [key,value] of Object.entries({aid:'8662',app_name:'novelread',version_code:'73532',version_name:'7.3.5.32',manifest_version_code:'73532',update_version_code:'73532',channel:'update_64',device_platform:'android',os:'android',ssmix:'a',device_type:'25053RT47C',device_brand:'Redmi',language:'zh',os_api:'36',os_version:'16',resolution:'1280*2772',dpi:'520',ac:'wifi',...await this.identity()}))url.searchParams.set(key,value)}
   if(playback)for(const [key,value] of Object.entries({video_id:(body as {video_id:string}).video_id,video_id_type:'0',device_level:'1',need_all_video_definition:'1',need_mp4_align:'0',use_os_player:'0',video_platform:'1024',source:'0',from_video_id:'',_rticket:String(Date.now())}))url.searchParams.set(key,value);
   const payload=requestBody===undefined?undefined:JSON.stringify(requestBody);const headers:Record<string,string>={'user-agent':'HongguoTV/0.1','content-type':'application/json; charset=utf-8',...(payload?{'x-ss-stub':createHash('md5').update(payload).digest('hex').toUpperCase()}: {})};
-  if(playback)Object.assign(headers,{'user-agent':'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)',accept:'application/json','x-xs-from-web':'0','sdk-version':'2'});
-  const signatures=playback?{}:await this.signer.sign(url.href,headers);let response:Response;
-  try{response=await fetch(url,{method:payload?'POST':'GET',headers:{...headers,...signatures},body:payload,signal:AbortSignal.timeout(25000)})}catch{throw new AppError('NETWORK','无法连接内容来源，请检查网络后重试')}
-  if(!response.ok)throw new AppError('API_HTTP',`内容来源暂不可用（${response.status}）`);
-  const text=await response.text();if(!text.trim()){
+  const signatures=playback?{}:await this.signer.sign(url.href,headers);let text='';
+  const hosts=playback?['api5-normal-sinfonlineb.fqnovel.com','api5-normal-hl.fqnovel.com','api5-normal-lf.fqnovel.com']:[url.hostname];
+  for(const host of hosts){
+   url.hostname=host;
+   if(playback){const signed=signPlayback(url.origin+url.pathname,Object.fromEntries(url.searchParams));url=new URL(signed.url);Object.assign(headers,signed.headers)}
+   let response:Response;
+   try{response=await fetch(url,{method:payload?'POST':'GET',headers:{...headers,...signatures},body:payload,signal:AbortSignal.timeout(25000)})}catch{throw new AppError('NETWORK','无法连接内容来源，请检查网络后重试')}
+   if(!response.ok)throw new AppError('API_HTTP',`内容来源暂不可用（${response.status}）`);
+   text=await response.text();if(text.trim())break;
+  }
+  if(!text.trim()){
    if(playback&&url.searchParams.get('device_id')!==(await this.identity()).device_id)return this.request(endpoint,body,extra);
    if(playback&&!this.registeredPlayer){
     try{await this.register()}catch{throw new AppError('API_EMPTY','内容来源返回空结果，请稍后重试')}

@@ -1,5 +1,7 @@
 # 2026-11-03 原生播放恢复 · 0.1.2
 
+> 此为当时的验证记录。2026-11-06 已出现新的空响应与分集列表变化，原 155 集样本当前未恢复；请以[最新调查](playback-fix-2026-11-06.md)为准。
+
 ## 修正后的原因判断
 
 扩大公开库查询后，找到 [tsukiyo-zero/hongguoTV 的 11 月 2 日接口迁移记录](https://github.com/tsukiyo-zero/hongguoTV/blob/main/docs/superpowers/specs/2026-11-02-playinfo-video-tab-api-design.md)和[当前取源实现](https://github.com/tsukiyo-zero/hongguoTV/blob/main/kotlin-tv/core/src/main/kotlin/com/hongguotv/core/ContentRepository.kt)。其 GET 播放路径不同于此前反复对照的旧 POST 路径。这是本轮有效线索，感谢该项目公开实现与实测记录。

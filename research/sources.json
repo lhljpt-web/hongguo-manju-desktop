@@ -14,6 +14,14 @@
       "sha256": "ca365cb2cca23ad327091d4831dfd1ff88698401a44597b90f0e925e5eb71c50",
       "license": "not verified; research reference only",
       "executed": false
+    },
+    {
+      "file": "src/main/vendor/playback-signing.js",
+      "url": "https://github.com/tsukiyo-zero/hongguoTV/blob/7b764976ad/server/vendor/hongguo.cjs",
+      "retrievedAt": "2026-11-06",
+      "sha256": "7ef8daa0bfb45cd27c6923e69204feb60b912c660b91f6bdaa3c92c585350d1f",
+      "license": "GPL-3.0; server/vendor/NOTICE.md and original drpys attribution checked; root LICENSE applies",
+      "executed": "signing primitives only; no third-party identities/networking"
     }
   ]
 }

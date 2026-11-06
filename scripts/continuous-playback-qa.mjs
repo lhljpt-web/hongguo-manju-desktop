@@ -154,6 +154,16 @@ try{
  await page.getByRole('button',{name:'发现',exact:true}).click();await page.locator('.work-grid .work-card').filter({hasText:titles[0]}).click();await ready(0,2);await assertPrefs();assert.equal(await page.getByRole('combobox',{name:'画质上限',exact:true}).inputValue(),'480p');assert.equal(await page.getByRole('checkbox').isChecked(),false);assert.equal(await page.getByRole('combobox',{name:'睡眠定时',exact:true}).inputValue(),'off');
  record('orderly restart preserves quality, volume, mute, 2x, autoNext, limits and priority; sleep remains session-only');
  assert.deepEqual(errors,[]);await page.screenshot({path:path.join(output,'restart-preferences.png')});
+ await page.locator('video').evaluate(video=>video.pause());await quit();
+ const libraryFile=path.join(profile,'library.json'),library=JSON.parse(await readFile(libraryFile,'utf8'));
+ const missing={...library.history.find(item=>item.seriesId===ids[0]),episodeId:'7695386582622145561',order:78,time:12,duration:45};
+ library.history=library.history.map(item=>item.seriesId===ids[0]?missing:item);await writeFile(libraryFile,JSON.stringify(library));
+ await launch();await page.locator('.work-grid .work-card').filter({hasText:titles[0]}).click();
+ await page.getByText('暂时无法继续上次分集',{exact:true}).waitFor();assert.equal(await page.locator('video').count(),0);
+ const unchanged=await page.evaluate(()=>window.desktop.library());assert.equal(unchanged.data.history.find(item=>item.seriesId===missing.seriesId)?.episodeId,missing.episodeId);
+ await page.screenshot({path:path.join(output,'missing-saved-episode.png')});
+ await page.getByRole('button',{name:'播放第1集',exact:true}).click();await ready(0,1);
+ record('a removed saved episode shows a clear prompt without autoplay or history replacement; manual selection still plays');
  await writeFile(path.join(output,'report.json'),JSON.stringify({passed:true,events,errors,snapshot},null,2));console.log(JSON.stringify({passed:true,output,events},null,2));
 }catch(error){
  const text=await page?.locator('body').innerText().catch(()=>null);await page?.screenshot({path:path.join(output,'failure.png')}).catch(()=>{});

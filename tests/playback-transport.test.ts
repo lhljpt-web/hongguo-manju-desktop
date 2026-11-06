@@ -14,13 +14,13 @@ async function fixture(run:(dir:string)=>Promise<void>){
  try{await run(dir)}finally{await rm(dir,{recursive:true,force:true})}
 }
 
-test('playback obtains resources with a persisted installation identity and no legacy signatures',async t=>fixture(async dir=>{
+test('playback obtains signed resources with a persisted installation identity without the catalog SDK',async t=>fixture(async dir=>{
  const signer=new Signer('unused');
  const sign=t.mock.method(signer,'sign',async()=>({'X-Argus':'legacy','X-Gorgon':'legacy'}));
  const identities:string[]=[];
  t.mock.method(globalThis,'fetch',async(input:any,init:any)=>{
   const url=new URL(String(input));const headers=new Headers(init.headers);
-  if(!/^[1-9]\d{18}$/.test(url.searchParams.get('device_id')??'')||!/^[1-9]\d{18}$/.test(url.searchParams.get('iid')??'')||headers.has('X-Argus'))return new Response('');
+  if(!/^[1-9]\d{18}$/.test(url.searchParams.get('device_id')??'')||!/^[1-9]\d{18}$/.test(url.searchParams.get('iid')??'')||!headers.has('x-medusa'))return new Response('');
   identities.push(`${url.searchParams.get('device_id')}:${url.searchParams.get('iid')}`);
   assert.equal(url.hostname,'api5-normal-sinfonlineb.fqnovel.com');assert.equal(url.pathname,'/reading/bookapi/video_tab/multi_video_model/v1/');
   assert.equal(url.searchParams.get('aid'),'8662');assert.equal(url.searchParams.get('version_code'),'73532');
@@ -50,11 +50,11 @@ test('a failed playback request does not rotate the stored identity on retry',as
  t.mock.method(globalThis,'fetch',async(input:any)=>{
   const url=new URL(String(input));ids.push(`${url.searchParams.get('device_id')}:${url.searchParams.get('iid')}`);
   if(url.hostname==='log.snssdk.com'){ids.pop();return Response.json({device_id:0,install_id:0})}
-  return ids.length===1?new Response(''):Response.json({code:0,data:{video_model_data:{[VID]:{video_model:{}}}}});
+  return ids.length<=3?new Response(''):Response.json({code:0,data:{video_model_data:{[VID]:{video_model:{}}}}});
  });
  const transport=new Transport(signer,dir);
  await assert.rejects(transport.request(endpoint,body),{code:'API_EMPTY'});
- await transport.request(endpoint,body);assert.equal(ids.length,2);assert.equal(ids[0],ids[1]);
+ await transport.request(endpoint,body);assert.equal(ids.length,4);assert.equal(new Set(ids).size,1);
 }));
 
 test('empty legacy playback registers once, retries the same episode and persists the server identity',async t=>fixture(async dir=>{
@@ -76,7 +76,7 @@ test('empty legacy playback registers once, retries the same episode and persist
  const transport=new Transport(signer,dir);
  await Promise.all([transport.request(endpoint,body),transport.request(endpoint,body)]);
  await new Transport(signer,dir).request(endpoint,body);
- assert.equal(registrations,1);assert.equal(legacy,2);assert.equal(plays,5);
+ assert.equal(registrations,1);assert.equal(legacy,6);assert.equal(plays,9);
  const stored=JSON.parse(await readFile(path.join(dir,'player-profile.json'),'utf8'));
  assert.equal(stored.device_id,registered.device_id);assert.equal(stored.registered,true);
 }));
@@ -102,7 +102,7 @@ test('an empty response after successful registration does not register or recur
  const transport=new Transport(new Signer('unused'),dir);
  await assert.rejects(transport.request(endpoint,body),{code:'API_EMPTY'});
  await assert.rejects(new Transport(new Signer('unused'),dir).request(endpoint,body),{code:'API_EMPTY'});
- assert.equal(registrations,1);assert.equal(plays,3);
+ assert.equal(registrations,1);assert.equal(plays,9);
 }));
 
 test('a corrupt identity is reported without rotating it or making network requests',async t=>fixture(async dir=>{

@@ -9,10 +9,11 @@ test('resume is bounded and completed videos restart from the beginning', () => 
   assert.equal(resumeTime(Number.NaN, 100), 0);
   assert.equal(resumeTime(42, 0), 42);
 });
-test('episode selection restores the exact saved episode with a safe first-episode fallback', () => {
+test('episode selection never replaces an unavailable saved episode with another episode', () => {
   const episodes = [{ id: 'a', order: 1 }, { id: 'b', order: 2 }];
   assert.equal(selectEpisode(episodes, 'b')?.id, 'b');
-  assert.equal(selectEpisode(episodes, 'missing')?.id, 'a');
+  assert.equal(selectEpisode(episodes, 'missing'), undefined);
+  assert.equal(selectEpisode(episodes)?.id, 'a');
   assert.equal(selectEpisode([], 'b'), undefined);
 });
 test('time formatting handles unavailable durations and hours', () => {

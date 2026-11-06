@@ -12,5 +12,5 @@ export function formatTime(time: number): string {
   return hours ? `${hours}:${tail}` : tail;
 }
 export function selectEpisode(episodes: Episode[], id?: string): Episode | undefined {
-  return episodes.find(episode => episode.id === id) ?? episodes[0];
+  return id ? episodes.find(episode => episode.id === id) : episodes[0];
 }
