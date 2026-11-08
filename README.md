@@ -2,11 +2,11 @@
 
 Windows 上的第三方漫剧客户端。找剧、播放、缓存，接着上次的进度继续看。
 
-**[下载 0.1.3 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.3/Hongguo-Manju-0.1.3-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.3) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
+**[下载 0.1.4 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.4/Hongguo-Manju-0.1.4-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.4) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
 
 支持 Windows 10 / 11 x64。安装包自带运行组件，无需手机、模拟器或额外配置开发环境。
 
-0.1.3 补全原生播放签名、加入有限的空响应换路重试，并保护失效分集的续播记录。两部作品各抽查首集、中间集、末集，六集 1080p 完整解码通过。部分设备标识仍会被来源返回空结果；原 155 集样本目前仍未恢复，不能据此认定所有作品全集正常。[本轮验证与已知限制](docs/playback-fix-2026-11-06.md)
+0.1.4 修复匿名播放身份复用失效导致的中间集、末集取流失败，采用按请求登记的签名 POST 恢复路径。[本轮验证记录](docs/playback-fix-2026-11-08.md)
 
 > 本项目独立维护，与红果官方及其运营方无隶属或合作关系。作品、品牌和媒体资源归相应权利方所有。
 

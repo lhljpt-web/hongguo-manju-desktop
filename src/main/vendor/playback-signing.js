@@ -89,22 +89,23 @@ function branchOf(url, body, khronos) { const bodyMd5 = body ? crypto.createHash
  * @param {Record<string,string>} values
  * @param {number} now
  * @param {()=>number} randomValue
+ * @param {Buffer|null} body
  */
-export function signPlayback(base, values, now = Date.now(), randomValue = Math.random) {
+export function signPlayback(base, values, now = Date.now(), randomValue = Math.random, body = null) {
     const ts = Math.floor(now / 1000);
     for (let offset = 0; offset < 128; offset++) {
         const ticket = String(now + offset);
         const encode = value => encodeURIComponent(value).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
         const query = Object.entries({...values, _rticket:ticket}).map(([k,v]) => encode(k) + '=' + encode(v)).join('&');
         const url = base + '?' + query;
-        if (branchOf(url, null, ts) !== 0) continue;
+        if (branchOf(url, body, ts) !== 0) continue;
         return {url, headers: {
             'user-agent':'com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)',
             accept:'application/json; charset=utf-8,application/x-protobuf',
             'x-ss-req-ticket':ticket, 'sdk-version':'2', 'x-xs-from-web':'0',
             'x-khronos':String(ts), 'x-ladon':be32(ts).toString('base64'), 'x-argus':le32(ts).toString('base64'),
-            'x-gorgon':xGorgon(query,null,ts,Math.floor(randomValue()*65536)),
-            'x-helios':helios(ts,randomValue), 'x-medusa':buildMedusa(url,null,ts,values,randomValue),
+            'x-gorgon':xGorgon(query,body,ts,Math.floor(randomValue()*65536)),
+            'x-helios':helios(ts,randomValue), 'x-medusa':buildMedusa(url,body,ts,values,randomValue),
         }};
     }
     throw Error('No supported signing branch');
