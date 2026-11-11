@@ -17200,6 +17200,7 @@ var MediaCache = class {
   activeJobs = /* @__PURE__ */ new Set();
   groups = [];
   groupIndex = /* @__PURE__ */ new Map();
+  seriesOf = /* @__PURE__ */ new Map();
   groupCursor = 0;
   suspended = false;
   window = [];
@@ -17274,6 +17275,25 @@ var MediaCache = class {
       if (/^[a-f0-9]{32}\.(?:mp4|json)$/.test(name) && !liveKeys.has(name.split(".")[0])) await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, name)).catch(() => {
       });
     }
+    for (const dirent of await (0, import_promises4.readdir)(this.directory, { withFileTypes: true }).catch(() => [])) {
+      if (!dirent.isDirectory()) continue;
+      const dir = import_node_path2.default.join(this.directory, dirent.name);
+      for (const name of await (0, import_promises4.readdir)(dir).catch(() => [])) {
+        if (!/^[a-f0-9]{32}\.json$/.test(name)) continue;
+        try {
+          const e = JSON.parse(await (0, import_promises4.readFile)(import_node_path2.default.join(dir, name), "utf8"));
+          if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, 32)) {
+            e.file = import_node_path2.default.join(dir, e.key + ".mp4");
+            const info = await (0, import_promises4.stat)(e.file);
+            if (info.size > 0 && info.size <= FILE_LIMIT) {
+              e.bytes = info.size;
+              this.entries.set(e.episodeId, e);
+            }
+          }
+        } catch {
+        }
+      }
+    }
   }
   setBufferWindow(ids) {
     if (!Array.isArray(ids) || ids.length > 5e3 || ids.some((id) => !validId(id)) || new Set(ids).size !== ids.length) throw new AppError("INVALID_INPUT", "\u7F13\u51B2\u5267\u96C6\u5217\u8868\u65E0\u6548");
@@ -17315,6 +17335,7 @@ var MediaCache = class {
     this.groups = groups.map((group) => ({ ...group, ids: [...group.ids] }));
     this.groupIndex = /* @__PURE__ */ new Map();
     for (const group of this.groups) for (const id of group.ids) this.groupIndex.set(id, group.id);
+    for (const group of this.groups) for (const id of group.ids) this.seriesOf.set(String(id), String(group.id));
     for (const job of this.jobs.values()) if (!job.foreground && !this.inBackground(job.id) && job.id !== this.window[0]) this.cancel(job);
     this.pump();
   }
@@ -17568,7 +17589,7 @@ var MediaCache = class {
         if (key) {
           this.deletionMetadata.set(id, key);
           try {
-            await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, key + ".json"));
+            await (0, import_promises4.unlink)(import_node_path2.default.join(this.dirFor(id), key + ".json"));
             this.deletionMetadata.delete(id);
           } catch (error) {
             if (error.code !== "ENOENT") failed = true;
@@ -17585,6 +17606,34 @@ var MediaCache = class {
   }
   get location() {
     return this.directory;
+  }
+  learnSeries(series) {
+    try {
+      if (!series || !series.id || !Array.isArray(series.episodes)) return;
+      for (const episode of series.episodes) this.seriesOf.set(String(episode.id), String(series.id));
+    } catch {
+    }
+  }
+  dirFor(episodeId) {
+    const seriesId = this.seriesOf.get(String(episodeId));
+    return seriesId ? import_node_path2.default.join(this.directory, seriesId) : this.directory;
+  }
+  async migrateLayout() {
+    for (const [episodeId, entry] of [...this.entries]) {
+      try {
+        const target = this.dirFor(episodeId);
+        if (!target || target === this.directory) continue;
+        const from = entry.file, metaFrom = import_node_path2.default.join(import_node_path2.default.dirname(from), entry.key + ".json");
+        if (import_node_path2.default.dirname(from) === target) continue;
+        await (0, import_promises4.mkdir)(target, { recursive: true });
+        const to = import_node_path2.default.join(target, entry.key + ".mp4");
+        await (0, import_promises4.rename)(from, to);
+        await (0, import_promises4.rename)(metaFrom, import_node_path2.default.join(target, entry.key + ".json")).catch(() => {
+        });
+        entry.file = to;
+      } catch {
+      }
+    }
   }
   get usedBytes() {
     return [...this.entries.values()].reduce((sum, entry) => sum + (entry.bytes || 0), 0) + [...this.partialBytes.values()].reduce((sum, bytes) => sum + bytes, 0);
@@ -17788,8 +17837,11 @@ var MediaCache = class {
     check2(signal);
     if (!(resource.duration > 0) || resource.duration > 1800 || !(resource.size > 0) || resource.size > FILE_LIMIT) throw new AppError("UNSUPPORTED_RESOURCE", "\u64AD\u653E\u8D44\u6E90\u4E0D\u5B8C\u6574\u6216\u5927\u5C0F\u6682\u4E0D\u652F\u6301");
     const key = (0, import_node_crypto3.randomUUID)().replaceAll("-", ""), partial = this.partialName(resource.episodeId, job.quality);
-    const input = import_node_path2.default.join(this.directory, partial + ".mp4"), checkpoint = import_node_path2.default.join(this.directory, partial + ".json"), working = import_node_path2.default.join(this.directory, key + ".working.mp4"), output = import_node_path2.default.join(this.directory, key + ".mp4");
-    const metadata = import_node_path2.default.join(this.directory, key + ".json");
+    const __dir = this.dirFor(resource.episodeId);
+    if (__dir !== this.directory) await (0, import_promises4.mkdir)(__dir, { recursive: true }).catch(() => {
+    });
+    const input = import_node_path2.default.join(this.directory, partial + ".mp4"), checkpoint = import_node_path2.default.join(this.directory, partial + ".json"), working = import_node_path2.default.join(__dir, key + ".working.mp4"), output = import_node_path2.default.join(__dir, key + ".mp4");
+    const metadata = import_node_path2.default.join(__dir, key + ".json");
     let committed = false, downloaded = false, encoder, release, growing, prefix = Buffer.alloc(0), decided = false, processingMs = 0;
     const contentKey = resource.encrypted ? decodeContentKey(resource.spade || "") : null;
     try {
@@ -17912,7 +17964,7 @@ var MediaCache = class {
       growing?.complete(output);
       this.growing.delete(key);
       if (previous) {
-        await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, previous.key + ".json")).catch(() => {
+        await (0, import_promises4.unlink)(import_node_path2.default.join(import_node_path2.default.dirname(previous.file), previous.key + ".json")).catch(() => {
         });
         await (0, import_promises4.unlink)(previous.file).catch(() => {
         });
@@ -18040,7 +18092,7 @@ var MediaCache = class {
       if (reclaim || total > CACHE_LIMIT || Date.now() - e.touched > 864e5) {
         try {
           await (0, import_promises4.unlink)(e.file);
-          await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, e.key + ".json")).catch(() => {
+          await (0, import_promises4.unlink)(import_node_path2.default.join(import_node_path2.default.dirname(e.file), e.key + ".json")).catch(() => {
           });
           this.entries.delete(e.episodeId);
           total -= sizes.get(e.episodeId);
@@ -18136,6 +18188,12 @@ var CacheManager = class {
       }
     }
     this.sync();
+    try {
+      for (const task of this.value.tasks) this.media.learnSeries(task.series);
+      for (const series of this.value.knownSeries) this.media.learnSeries(series);
+      void this.media.migrateLayout();
+    } catch {
+    }
   }
   get closeToTray() {
     return this.value.closeToTray;
@@ -20350,6 +20408,10 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     handle2("series", async (id) => {
       const series = await provider.getSeries(id);
       await cache.remember(series);
+      try {
+        media.learnSeries(series);
+      } catch {
+      }
       return series;
     });
     handle2("recommendations", (id, refresh = false) => recommendations.get(id, refresh));
