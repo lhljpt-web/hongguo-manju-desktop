@@ -1,5 +1,13 @@
 # Third-party signing primitives
 
+`playback-signature-551.js` adapts the playback-only Argus/Ladon module from
+[`jackotom/hongguo-drama`, commit `3f5927d0d605ff7742fde8cbd1bb92ffe951b080`](https://github.com/jackotom/hongguo-drama/blob/3f5927d0d605ff7742fde8cbd1bb92ffe951b080/src/native/playback-signature.js), GPL-3.0-only.
+Its header attributes N3urda/hongguoTV `7444bb01aec7b0420740103e551c45f1f66101c9`
+and ch6vip/fqapp. Adapted 2026-11-12: ESM exports and the existing sm-crypto SM3
+backend for Electron. Only the signing primitives are included; registration,
+networking, account data and media addresses are excluded. Protocol constants are
+public upstream algorithm data. The local application owns each request identity.
+
 `playback-signing.js` adapts only the signing algorithm block of:
 
 - `woshishiq1/drpys`, commit `22261adfa31435e3b3ef5a730b8a2a75bcaf1715`, `spider/js/红果果[短].js` (GPL-3.0).
