@@ -1,4 +1,4 @@
-# 社区发行版 0.15.1beta（非官方补丁包）
+# 社区发行版 0.2.0（非官方补丁包）
 
 基于上游 **0.1.4** 运行时文件的社区补丁包，只替换 `resources/app/dist` 下的前端/主进程文件，不改动安装器与运行时组件。适用于 Windows x64 已安装 0.1.4 的用户。
 
@@ -25,21 +25,21 @@
 - 启动自动探测 NVENC → QSV → AMF，优先 GPU 硬编，失败回退 libx264。
 - 自动模式：Chromium 支持 HEVC 硬解时走「只解密 + 重封装」，播放交给系统硬解，不再长时间转码。
 
-### 刷剧模式（Demo）
-- 独立窗口：竖向滑动切集、自动连播、收藏/缓存/下一集。
-- 分类筛选：推荐 / 言情 / 古装 / 甜宠 / 悬疑 / 逆袭 / 全部。
-- 个性化推荐：按观看记录与收藏题材加权；可在刷剧设置或缓存页底部关闭/管理。
+### 界面
+- 卡片角标显示「看到第 X 集」（按剧集 ID + 总集数校验，未看过的剧不显示）。
+- 页面全屏按钮 / F11；全屏播放竖屏视频等比完整显示。
+- 刷剧模式（Demo）：独立窗口、竖向滑动、分类筛选（含言情）、个性化推荐。
 
 ## 安装
 
 1. 已安装 0.1.4 桌面版（默认路径 `%LOCALAPPDATA%\Programs\hongguo-manju-desktop` 或自定义目录）。
 2. 关闭应用。
 3. 右键 `apply.ps1` → 使用 PowerShell 运行，按提示输入安装目录（含 `红果漫剧桌面版.exe` 的目录）。
-4. 脚本会备份原文件为 `*.bak-0.15beta`，然后覆盖以下文件：
+4. 脚本会备份原文件为 `*.bak-0.2.0`，然后覆盖以下文件：
    - `resources/app/dist/main/main.cjs`
    - `resources/app/dist/main/preload.cjs`
    - `resources/app/dist/renderer/assets/index-Bd3dQB5J.js`
-   - `resources/app/dist/renderer/swipe.html`、`swipe-app.js`、`watchdog.js`
+   - `resources/app/dist/renderer/swipe.html`、`swipe-app.js`、`watchdog.js`、`progress-badge.js`、`page-fullscreen.js`
 
 > 本补丁针对解包目录 `resources/app`。若安装包仍使用 `resources/app.asar`，请先自行解包并让 Electron 加载目录（参考上游构建说明），或使用本仓库 Release 中的完整替换包。
 

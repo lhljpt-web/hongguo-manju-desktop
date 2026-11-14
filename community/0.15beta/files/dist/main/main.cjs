@@ -20223,11 +20223,35 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     window2.webContents.on("did-finish-load", () => {
       try {
         const watchdog = require("node:fs").readFileSync(import_node_path5.default.join(__dirname, "../renderer/watchdog.js"), "utf8");
+        window2?.webContents.on("before-input-event", (event, input) => {
+          if (input.type === "keyDown" && input.key === "F11" && !input.control && !input.alt) {
+            event.preventDefault();
+            window2.setFullScreen(!window2.isFullScreen());
+          }
+        });
         void window2?.webContents.executeJavaScript(watchdog, true).then(() => {
           __hgDbg("watchdog injected");
         }).catch((e) => {
           __hgDbg("watchdog inject failed: " + (e && e.message));
         });
+        try {
+          const badge = require("node:fs").readFileSync(import_node_path5.default.join(__dirname, "../renderer/progress-badge.js"), "utf8");
+          void window2?.webContents.executeJavaScript(badge, true).then(() => {
+            __hgDbg("progress badge injected");
+          }).catch((e) => {
+            __hgDbg("progress badge failed: " + (e && e.message));
+          });
+        } catch {
+        }
+        try {
+          const pageFs = require("node:fs").readFileSync(import_node_path5.default.join(__dirname, "../renderer/page-fullscreen.js"), "utf8");
+          void window2?.webContents.executeJavaScript(pageFs, true).then(() => {
+            __hgDbg("page fullscreen injected");
+          }).catch((e) => {
+            __hgDbg("page fullscreen failed: " + (e && e.message));
+          });
+        } catch {
+        }
       } catch {
       }
     });
@@ -20366,6 +20390,17 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     handle2("capabilities", (value) => {
       media.setHevcSupported(!!(value && value.hevc));
       return { hevc: !!media.hevcSupported };
+    });
+    handle2("hg-log", (msg) => {
+      __hgDbg("ui: " + String(msg).slice(0, 500));
+      return true;
+    });
+    handle2("hg-fullscreen", () => {
+      const win = import_electron.BrowserWindow.getFocusedWindow() || window2;
+      if (!win) return false;
+      const next = !win.isFullScreen();
+      win.setFullScreen(next);
+      return next;
     });
     handle2("cache-limits", (value) => cache.setLimits(value));
     handle2("cache-priority", (id, priority) => cache.setPriority(id, priority));

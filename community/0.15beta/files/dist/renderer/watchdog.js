@@ -39,7 +39,8 @@
   }
   async function autoEnabled() {
     try {
-      const prefs = await window.desktop.swipePrefs();
+      const raw = await window.desktop.swipePrefs();
+      const prefs = raw && typeof raw === "object" && "ok" in raw ? raw.data : raw;
       return !prefs || prefs.autoNext !== false;
     } catch { return true; }
   }

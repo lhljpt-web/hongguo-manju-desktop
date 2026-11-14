@@ -2,6 +2,7 @@
 (function () {
   const CATS = ["推荐", "言情", "古装", "甜宠", "悬疑", "逆袭", "全部"];
   const state = { category: "推荐", items: [], offset: 0, loading: false, pref: true, autoNext: true, history: null };
+  const unwrap = (r) => r && typeof r === "object" && "ok" in r ? (r.ok ? r.data : null) : r;
 
   const css = document.createElement("style");
   css.textContent = `
@@ -111,7 +112,7 @@
 
   async function loadPrefs() {
     try {
-      const prefs = await window.desktop.swipePrefs();
+      const prefs = unwrap(await window.desktop.swipePrefs());
       state.pref = !prefs || prefs.recommend !== false;
       state.autoNext = !prefs || prefs.autoNext !== false;
       recoToggle.checked = state.pref;
@@ -125,7 +126,7 @@
     slides.innerHTML = "";
     state.items = [];
     try {
-      const res = await window.desktop.swipeFeed(state.category, true);
+      const res = unwrap(await window.desktop.swipeFeed(state.category, true));
       state.items = res?.items || [];
       state.offset = res?.nextOffset || state.items.length;
       if (!state.items.length) slides.appendChild($("div", { class: "hg-slide" }, [$("div", { class: "status", text: "这个分类暂时没有可播放的漫剧，换个分类试试" })]));
@@ -207,8 +208,8 @@
     s.error = false;
     s.status.textContent = "正在获取片源…";
     try {
-      if (!state.history) state.history = await window.desktop.library().catch(() => null);
-      const series = await window.desktop.series(s.item.id);
+      if (!state.history) state.history = unwrap(await window.desktop.library().catch(() => null));
+      const series = unwrap(await window.desktop.series(s.item.id));
       s.series = series;
       s.episodes = series.episodes || [];
       if (!s.episodes.length) throw new Error("该作品暂无分集");
@@ -255,7 +256,7 @@
     if (!episode) return;
     s.status.textContent = "正在准备第 " + episode.order + " 集…";
     s.ep.textContent = "第 " + episode.order + " 集";
-    const res = await window.desktop.playback(episode.id, false, "auto");
+    const res = unwrap(await window.desktop.playback(episode.id, false, "auto"));
     if (!res || !res.url) throw new Error("片源为空");
     s.video.src = res.url;
     s.video.muted = false;
