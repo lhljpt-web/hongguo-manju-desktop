@@ -76,6 +76,6 @@ export async function registerPlayer():Promise<{device_id:string;iid:string}>{
  const text=await response.text();if(text.length>65536)throw new AppError('PLAYER_REGISTRATION','播放设备登记响应异常');
  let value:any;try{value=safeJson(text)}catch{throw new AppError('PLAYER_REGISTRATION','播放设备登记响应异常')}
  const device_id=String(value.device_id_str||value.device_id||''),iid=String(value.install_id_str||value.install_id||'');
- if(!/^[1-9]\d{15,19}$/.test(device_id)||!/^[1-9]\d{15,19}$/.test(iid))throw new AppError('PLAYER_REGISTRATION','播放设备登记未返回有效标识');
+ if(!/^[1-9]\d{14,19}$/.test(device_id)||!/^[1-9]\d{14,19}$/.test(iid))throw new AppError('PLAYER_REGISTRATION','播放设备登记未返回有效标识');
  return {device_id,iid};
 }

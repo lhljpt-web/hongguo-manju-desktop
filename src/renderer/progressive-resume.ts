@@ -16,5 +16,10 @@ export async function completedResumeResource(options:{episodeId:string;url:stri
  // new transfer. The returned identity is still checked before replacing it.
  if(!options.isCurrent()||state.ready<1||state.failed||!state.activities||state.activities.some(item=>item.episodeId===options.episodeId))return;
  const playback=await options.getPlayback();
- if(options.isCurrent()&&!playback.progressive&&playback.episodeId===options.episodeId&&playback.url===options.url)return playback;
+ if(options.isCurrent()&&!playback.progressive&&playback.episodeId===options.episodeId&&playback.url===options.url){
+  // Chromium can retain the finite first fragment across load() on the same URL.
+  // A completed-cache URL forces metadata and ranges to be read from the full file.
+  const url=new URL(playback.url);url.searchParams.set('complete','1');
+  return {...playback,url:url.href};
+ }
 }

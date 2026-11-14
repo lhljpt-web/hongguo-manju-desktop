@@ -11,11 +11,11 @@ test('an exhausted GET route recovers each episode with a separate registered si
   const file=path.join(dir,'player-profile.json');
   const saved=JSON.stringify({device_id:'1123456789012345678',iid:'1123456789012345679',registered:true});
   await writeFile(file,saved);
-  let registrations=0;const posts:any[]=[];
+  let registrations=0;const posts:any[]=[],getIdentities:string[]=[];
   t.mock.method(globalThis,'fetch',async(input:any,init:any)=>{
    const url=new URL(String(input));
    if(url.pathname==='/service/2/device_register/')return Response.json({device_id:String(7123456789012345n+BigInt(++registrations)),install_id:'7123456789012346'});
-   if(init.method==='GET')return new Response('');
+   if(url.pathname==='/reading/bookapi/video_tab/multi_video_model/v1/'){getIdentities.push(url.searchParams.get('device_id')!);return new Response('')}
    posts.push({url,init});const body=JSON.parse(Buffer.from(init.body).toString());const id=body.mixed_video_id_map['1004'][0];
    return Response.json({code:0,data:{[id]:{video_model:{video_id:id}}}});
   });
@@ -23,8 +23,9 @@ test('an exhausted GET route recovers each episode with a separate registered si
   await Promise.all(['7695629171300502552','7685228691239996440'].map(async id=>{
    const result=await transport.request('/novel/player/video_model/v1/',{video_id:id});assert.equal(result.data.video_model.video_id,id);
   }));
-  assert.equal(registrations,2);assert.equal(posts.length,2);
+  assert.equal(registrations,4);assert.equal(posts.length,2);
   assert.notEqual(posts[0].url.searchParams.get('device_id'),posts[1].url.searchParams.get('device_id'));
+  for(const post of posts)assert.ok(getIdentities.includes(post.url.searchParams.get('device_id')!)===false);
   for(const post of posts){assert.equal(post.url.pathname,'/novel/player/multi_video_model/v1/');assert.ok(new Headers(post.init.headers).has('x-medusa'))}
   assert.equal(await readFile(file,'utf8'),saved);
  }finally{await rm(dir,{recursive:true,force:true})}
@@ -44,6 +45,24 @@ test('failed registration preserves stored identity and a later user action can 
 
 import {signPlayback} from '../src/main/vendor/playback-signing.js';
 import {registeredPlayback} from '../src/main/registered-playback';
+test('an empty legacy request recovers through a registered video-tab GET without a POST',async t=>{
+ let registrations=0,gets=0,posts=0;
+ t.mock.method(globalThis,'fetch',async(input:any,init:any)=>{
+  const url=new URL(String(input));
+  if(url.pathname==='/service/2/device_register/'){registrations++;return Response.json({device_id:'7123456789012345',install_id:'7123456789012346'})}
+  if(url.pathname==='/reading/bookapi/video_tab/multi_video_model/v1/'){
+   gets++;assert.equal(init.method,undefined);assert.equal(url.searchParams.get('version_code'),'73932');assert.equal(url.searchParams.get('video_id'),'7695629171300502552');
+   assert.equal(Buffer.from(init.headers['x-argus'],'base64').subarray(0,2).toString('hex'),'f281');
+   assert.ok(Buffer.from(init.headers['x-ladon'],'base64').length>16);
+   assert.equal(init.headers['x-medusa'],undefined);
+   return Response.json({code:0,data:{video_model_data:{'7695629171300502552':{video_model:{status:10}}}}});
+  }
+  if(url.pathname==='/novel/player/multi_video_model/v1/')posts++;
+  return new Response('');
+ });
+ const result=await registeredPlayback('7695629171300502552');
+ assert.equal(result.data.video_model.status,10);assert.equal(registrations,1);assert.equal(gets,1);assert.equal(posts,0);
+});
 test('POST signature binds the body and cannot reuse a signature for another episode',()=>{
  const values={device_id:'7123456789012345',iid:'7123456789012346',version_name:'7.3.9.32'};
  const one=signPlayback('https://example.test/model',values,1793912345123,()=>.5,Buffer.from('{"id":"1"}'));
@@ -54,7 +73,9 @@ test('POST recovery rejects another episode and stops after a single empty model
  for(const returned of ['other','empty']){
   let posts=0;
   t.mock.method(globalThis,'fetch',async(input:any)=>{
-   if(new URL(String(input)).pathname==='/service/2/device_register/')return Response.json({device_id:'7123456789012345',install_id:'7123456789012346'});
+   const url=new URL(String(input));
+   if(url.pathname==='/service/2/device_register/')return Response.json({device_id:'7123456789012345',install_id:'7123456789012346'});
+   if(url.pathname==='/reading/bookapi/video_tab/multi_video_model/v1/')return new Response('');
    posts++;return returned==='empty'?new Response(''):Response.json({code:0,data:{other:{video_model:{}}}});
   });
   await assert.rejects(registeredPlayback('7695629171300502552'),{code:returned==='empty'?'API_EMPTY':'API_FORMAT'});assert.equal(posts,1);t.mock.restoreAll();

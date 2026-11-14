@@ -23,10 +23,10 @@ test('completed reload never shrinks verified source duration while native metad
  assert.equal(resumeTime(15,playbackDuration({...full,progressive:false},15.5,20)),15);
 });
 
-test('a stalled resume can obtain the matching completed source once its active job disappears',async()=>{
+test('a stalled resume obtains the completed source with a fresh URL once its active job disappears',async()=>{
  let probes=0;const full={...resource,progressive:false};
  const result=await completedResumeResource({episodeId:resource.episodeId,url:resource.url,getState:async()=>completed,getPlayback:async()=>{probes++;return full},isCurrent:()=>true});
- assert.deepEqual(result,full);assert.equal(probes,1);
+ assert.deepEqual(result,{...full,url:full.url+'?complete=1'});assert.equal(probes,1);
 });
 
 test('completion probing never starts another source while still active, failed, or unknown',async()=>{
