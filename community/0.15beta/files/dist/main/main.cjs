@@ -20662,7 +20662,11 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
         });
       });
       const payload = JSON.stringify({ seriesId: String(seriesId || ""), episodeId: String(episodeId || ""), title: String(title || "") });
-      const opened = await win.webContents.executeJavaScript("(window.__hgOpenSeries ? window.__hgOpenSeries(" + payload + ") : false)").catch(() => false);
+      let opened = false;
+      for (let attempt = 0; attempt < 2 && opened === false; attempt++) {
+        if (attempt) await new Promise((resolve2) => setTimeout(resolve2, 500));
+        opened = await win.webContents.executeJavaScript("(window.__hgOpenSeries ? window.__hgOpenSeries(" + payload + ") : false)").catch(() => false);
+      }
       if (opened !== false && swipeWindow && !swipeWindow.isDestroyed()) swipeWindow.close();
       return { opened: opened !== false };
     });
