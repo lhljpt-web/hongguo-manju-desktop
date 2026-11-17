@@ -16341,6 +16341,20 @@ var LibraryStore = class {
       draft.favorites = draft.favorites.slice(0, 500);
     });
   }
+  reorder(ids) {
+    if (!Array.isArray(ids) || ids.length > 500 || ids.some((id) => !validId(id)) || new Set(ids).size !== ids.length) throw new AppError("INVALID_INPUT", "\u6536\u85CF\u6392\u5E8F\u65E0\u6548");
+    return this.mutate((draft) => {
+      const byId = new Map(draft.favorites.map((w) => [w.id, w])), ordered = [];
+      for (const id of ids) {
+        const work2 = byId.get(id);
+        if (work2) {
+          ordered.push(work2);
+          byId.delete(id);
+        }
+      }
+      draft.favorites = [...ordered, ...byId.values()];
+    });
+  }
   async progress(input) {
     if (!validId(input?.seriesId) || !validId(input?.episodeId) || !Number.isInteger(input.order) || input.order < 1 || !Number.isFinite(input.time) || input.time < 0 || !Number.isFinite(input.duration) || input.duration <= 0 || input.time > input.duration + 2) throw new AppError("INVALID_INPUT", "\u89C2\u770B\u8FDB\u5EA6\u65E0\u6548");
     const work2 = safeWork(input.work);
@@ -17201,6 +17215,10 @@ var MediaCache = class {
   groups = [];
   groupIndex = /* @__PURE__ */ new Map();
   seriesOf = /* @__PURE__ */ new Map();
+  orderOf = /* @__PURE__ */ new Map();
+  shuajuEntries = /* @__PURE__ */ new Map();
+  shuajuQueue = [];
+  shuajuActive = 0;
   groupCursor = 0;
   suspended = false;
   window = [];
@@ -17243,7 +17261,7 @@ var MediaCache = class {
     const __hgNetTimer = setInterval(() => void this.checkNetwork(), 30000);
     if (__hgNetTimer.unref) __hgNetTimer.unref();
     for (const name of await (0, import_promises4.readdir)(this.directory)) {
-      if (/^[a-f0-9]{32}\.json$/.test(name)) {
+      if (/^(?:[a-f0-9]{32}|ep\d{1,4})\.json$/.test(name)) {
         try {
           const e = JSON.parse(await (0, import_promises4.readFile)(import_node_path2.default.join(this.directory, name), "utf8"));
           if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, 32)) {
@@ -17257,7 +17275,7 @@ var MediaCache = class {
         } catch {
         }
       }
-      if (/^[a-f0-9]{32}\.(?:input|working)\.mp4$/.test(name)) await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, name)).catch(() => {
+      if (/^(?:[a-f0-9]{32}|ep\d{1,4})\.(?:input|working)\.mp4$/.test(name)) await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, name)).catch(() => {
       });
       if (/^[a-f0-9]{32}\.partial\.mp4$/.test(name)) {
         const info = await (0, import_promises4.stat)(import_node_path2.default.join(this.directory, name));
@@ -17272,14 +17290,15 @@ var MediaCache = class {
     }
     const liveKeys = new Set([...this.entries.values()].map((e) => e.key));
     for (const name of await (0, import_promises4.readdir)(this.directory)) {
-      if (/^[a-f0-9]{32}\.(?:mp4|json)$/.test(name) && !liveKeys.has(name.split(".")[0])) await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, name)).catch(() => {
+      if (/^(?:[a-f0-9]{32}|ep\d{1,4})\.(?:mp4|json)$/.test(name) && !liveKeys.has(name.split(".")[0])) await (0, import_promises4.unlink)(import_node_path2.default.join(this.directory, name)).catch(() => {
       });
     }
     for (const dirent of await (0, import_promises4.readdir)(this.directory, { withFileTypes: true }).catch(() => [])) {
       if (!dirent.isDirectory()) continue;
+      if (dirent.name === "shuaju") continue;
       const dir = import_node_path2.default.join(this.directory, dirent.name);
       for (const name of await (0, import_promises4.readdir)(dir).catch(() => [])) {
-        if (!/^[a-f0-9]{32}\.json$/.test(name)) continue;
+        if (!/^(?:[a-f0-9]{32}|ep\d{1,4})\.json$/.test(name)) continue;
         try {
           const e = JSON.parse(await (0, import_promises4.readFile)(import_node_path2.default.join(dir, name), "utf8"));
           if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, 32)) {
@@ -17610,13 +17629,77 @@ var MediaCache = class {
   learnSeries(series) {
     try {
       if (!series || !series.id || !Array.isArray(series.episodes)) return;
-      for (const episode of series.episodes) this.seriesOf.set(String(episode.id), String(series.id));
+      for (const episode of series.episodes) {
+        this.seriesOf.set(String(episode.id), String(series.id));
+        const order = Number(episode.order);
+        if (Number.isInteger(order) && order > 0) this.orderOf.set(String(episode.id), order);
+      }
     } catch {
     }
+  }
+  keyFor(episodeId) {
+    const order = this.orderOf.get(String(episodeId));
+    if (!Number.isInteger(order) || order <= 0 || order > 9999) return "";
+    return "ep" + String(order).padStart(3, "0");
   }
   dirFor(episodeId) {
     const seriesId = this.seriesOf.get(String(episodeId));
     return seriesId ? import_node_path2.default.join(this.directory, seriesId) : this.directory;
+  }
+  shuajuDir() {
+    return import_node_path2.default.join(this.directory, "shuaju");
+  }
+  // 刷剧模式的隐藏预取目录，不进入缓存任务列表。
+  async prepareShuaju(items) {
+    if (this.closing || !Array.isArray(items)) return;
+    const keep = /* @__PURE__ */ new Set();
+    for (const item of items.slice(0, 12)) {
+      if (!item || !validId(item.episodeId)) continue;
+      const id = String(item.episodeId);
+      keep.add(id);
+      if (this.entries.has(id) || this.shuajuEntries.has(id)) continue;
+      if (this.jobs.has(id) || this.activeJobs.has(id)) continue;
+      if (this.shuajuQueue.some((job) => job.id === id)) continue;
+      this.shuajuQueue.push({ id, quality: "auto" });
+    }
+    await this.pruneShuaju(keep);
+    this.pumpShuaju();
+  }
+  async pruneShuaju(keep) {
+    for (const [episodeId, entry] of [...this.shuajuEntries]) {
+      if (keep.has(String(episodeId))) continue;
+      this.shuajuEntries.delete(episodeId);
+      await (0, import_promises4.unlink)(entry.file).catch(() => {
+      });
+      await (0, import_promises4.unlink)(import_node_path2.default.join(import_node_path2.default.dirname(entry.file), entry.key + ".json")).catch(() => {
+      });
+    }
+  }
+  pumpShuaju() {
+    if (this.closing || this.shuajuActive >= 1 || !this.shuajuQueue.length) return;
+    const next = this.shuajuQueue.shift();
+    if (!next) return;
+    if (this.entries.has(next.id) || this.shuajuEntries.has(next.id)) {
+      this.pumpShuaju();
+      return;
+    }
+    this.shuajuActive++;
+    const job = { id: next.id, quality: next.quality || "auto", foreground: false, shuaju: true, controller: new AbortController(), progress: null, ready: false };
+    void this.run(job).then(() => {
+      __hgDbg("shuaju prefetched " + next.id);
+    }, (error) => {
+      __hgDbg("shuaju prefetch failed " + next.id + " " + (error && (error.code || error.message)));
+    }).finally(() => {
+      this.shuajuActive--;
+      this.shuajuQueue = this.shuajuQueue.filter((item) => item.id !== next.id);
+      this.pumpShuaju();
+    });
+  }
+  shuajuResult(episodeId) {
+    const entry = this.shuajuEntries.get(String(episodeId));
+    if (!entry) return null;
+    entry.touched = Date.now();
+    return this.result(entry);
   }
   async migrateLayout() {
     for (const [episodeId, entry] of [...this.entries]) {
@@ -17631,6 +17714,34 @@ var MediaCache = class {
         await (0, import_promises4.rename)(metaFrom, import_node_path2.default.join(target, entry.key + ".json")).catch(() => {
         });
         entry.file = to;
+      } catch {
+      }
+    }
+    await this.renameToEpisodeFiles();
+  }
+  // 把旧版随机文件名的缓存改名成 ep001.mp4 这类真实集数名。
+  async renameToEpisodeFiles() {
+    for (const [episodeId, entry] of [...this.entries]) {
+      try {
+        if (/^ep\d{1,4}$/.test(entry.key)) continue;
+        const key = this.keyFor(episodeId);
+        if (!key) continue;
+        const dir = import_node_path2.default.dirname(entry.file);
+        const target = import_node_path2.default.join(dir, key + ".mp4");
+        if (await (0, import_promises4.stat)(target).catch(() => null)) continue;
+        try {
+          await (0, import_promises4.rename)(entry.file, target);
+        } catch (error) {
+          if (["EPERM", "EBUSY", "EACCES"].includes(error.code)) continue;
+          throw error;
+        }
+        const oldMeta = import_node_path2.default.join(dir, entry.key + ".json");
+        entry.key = key;
+        entry.file = target;
+        await (0, import_promises4.writeFile)(import_node_path2.default.join(dir, key + ".json"), JSON.stringify({ ...entry, file: void 0 })).catch(() => {
+        });
+        await (0, import_promises4.unlink)(oldMeta).catch(() => {
+        });
       } catch {
       }
     }
@@ -17828,7 +17939,8 @@ var MediaCache = class {
     }
   }
   result(e) {
-    return { url: `manju-media://local/${e.key}`, duration: e.duration, definition: e.definition, episodeId: e.episodeId, availableQualities: e.availableQualities, codec: e.codec, size: e.size };
+    const id = e.progressive ? e.key : e.episodeId;
+    return { url: `manju-media://local/${id}`, duration: e.duration, definition: e.definition, episodeId: e.episodeId, availableQualities: e.availableQualities, codec: e.codec, size: e.size };
   }
   partialName(id, quality) {
     return (0, import_node_crypto3.createHash)("sha256").update(id + ":" + quality).digest("hex").slice(0, 32) + ".partial";
@@ -17836,8 +17948,10 @@ var MediaCache = class {
   async create(resource, signal, report, job, firstAttempt) {
     check2(signal);
     if (!(resource.duration > 0) || resource.duration > 1800 || !(resource.size > 0) || resource.size > FILE_LIMIT) throw new AppError("UNSUPPORTED_RESOURCE", "\u64AD\u653E\u8D44\u6E90\u4E0D\u5B8C\u6574\u6216\u5927\u5C0F\u6682\u4E0D\u652F\u6301");
-    const key = (0, import_node_crypto3.randomUUID)().replaceAll("-", ""), partial = this.partialName(resource.episodeId, job.quality);
-    const __dir = this.dirFor(resource.episodeId);
+    const __shuaju = !!job.shuaju;
+    const __baseKey = this.keyFor(resource.episodeId) || (0, import_node_crypto3.randomUUID)().replaceAll("-", "");
+    const key = __shuaju ? (this.seriesOf.get(String(resource.episodeId)) || "x") + "_" + __baseKey : __baseKey, partial = this.partialName(resource.episodeId, job.quality);
+    const __dir = __shuaju ? this.shuajuDir() : this.dirFor(resource.episodeId);
     if (__dir !== this.directory) await (0, import_promises4.mkdir)(__dir, { recursive: true }).catch(() => {
     });
     const input = import_node_path2.default.join(this.directory, partial + ".mp4"), checkpoint = import_node_path2.default.join(this.directory, partial + ".json"), working = import_node_path2.default.join(__dir, key + ".working.mp4"), output = import_node_path2.default.join(__dir, key + ".mp4");
@@ -17882,7 +17996,7 @@ var MediaCache = class {
           if (signal.aborted) return;
           job.ready = true;
           job.everReady = true;
-          job.progressivePlayback = { ...this.result({ key, file: working, episodeId: resource.episodeId, duration: resource.duration, definition: resource.definition, touched: Date.now(), policy: CACHE_POLICY, availableQualities: resource.availableQualities, codec: resource.codec, size: resource.size }), progressive: true };
+          job.progressivePlayback = { ...this.result({ key, file: working, episodeId: resource.episodeId, duration: resource.duration, definition: resource.definition, touched: Date.now(), policy: CACHE_POLICY, availableQualities: resource.availableQualities, codec: resource.codec, size: resource.size, progressive: true }), progressive: true };
           if (job.foreground) job.resolve(job.progressivePlayback);
           this.pump();
         }).catch(() => {
@@ -17957,6 +18071,21 @@ var MediaCache = class {
       const entry = { key, file: output, episodeId: resource.episodeId, duration: resource.duration, definition: resource.definition, touched: Date.now(), policy: CACHE_POLICY, bytes: info.size, quality: job.quality, availableQualities: resource.availableQualities, codec: resource.codec, size: resource.size };
       await (0, import_promises4.writeFile)(metadata, JSON.stringify({ ...entry, file: void 0 }));
       check2(signal);
+      if (__shuaju) {
+        const previous = this.shuajuEntries.get(resource.episodeId);
+        this.shuajuEntries.set(resource.episodeId, entry);
+        job.capacityCommitted = true;
+        committed = true;
+        growing?.complete(output);
+        this.growing.delete(key);
+        if (previous && previous.file !== entry.file) {
+          await (0, import_promises4.unlink)(previous.file).catch(() => {
+          });
+          await (0, import_promises4.unlink)(import_node_path2.default.join(import_node_path2.default.dirname(previous.file), previous.key + ".json")).catch(() => {
+          });
+        }
+        return this.result(entry);
+      }
       const previous = this.entries.get(resource.episodeId);
       this.entries.set(resource.episodeId, entry);
       job.capacityCommitted = true;
@@ -18058,13 +18187,14 @@ var MediaCache = class {
   }
   async response(url, range) {
     const uri = new URL(url);
-    if (uri.hostname !== "local" || !/^\/[a-f0-9]{32}$/.test(uri.pathname)) return new Response(null, { status: 404 });
-    const growing = this.growing.get(uri.pathname.slice(1));
+    if (uri.hostname !== "local" || !/^\/[A-Za-z0-9_-]{1,64}$/.test(uri.pathname)) return new Response(null, { status: 404 });
+    const ref = uri.pathname.slice(1);
+    const growing = this.growing.get(ref);
     if (growing) {
       if (range && !/^bytes=0-\d*$/.test(range)) return new Response(null, { status: 416 });
       return growing.response();
     }
-    const entry = [...this.entries.values()].find((e) => e.key === uri.pathname.slice(1));
+    const entry = this.entries.get(ref) || this.shuajuEntries.get(ref) || [...this.entries.values()].find((e) => e.key === ref);
     if (!entry) return new Response(null, { status: 404 });
     const info = await (0, import_promises4.stat)(entry.file).catch(() => null);
     if (!info) return new Response(null, { status: 404 });
@@ -20327,6 +20457,24 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
           });
         } catch {
         }
+        try {
+          const opener = require("node:fs").readFileSync(import_node_path5.default.join(__dirname, "../renderer/open-series.js"), "utf8");
+          void window2?.webContents.executeJavaScript(opener, true).then(() => {
+            __hgDbg("open series injected");
+          }).catch((e) => {
+            __hgDbg("open series failed: " + (e && e.message));
+          });
+        } catch {
+        }
+        try {
+          const favSort = require("node:fs").readFileSync(import_node_path5.default.join(__dirname, "../renderer/favorites-sort.js"), "utf8");
+          void window2?.webContents.executeJavaScript(favSort, true).then(() => {
+            __hgDbg("favorites sort injected");
+          }).catch((e) => {
+            __hgDbg("favorites sort failed: " + (e && e.message));
+          });
+        } catch {
+        }
       } catch {
       }
     });
@@ -20375,7 +20523,7 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
   }
   import_electron2.app.whenReady().then(async () => {
     const runtime = import_electron2.app.isPackaged ? import_node_path5.default.join(process.resourcesPath, "runtime-bundle") : import_node_path5.default.join(import_electron2.app.getAppPath(), "runtime-bundle");
-    signer = new Signer(runtime, import_node_path5.default.join(import_electron2.app.getPath("userData"), "runtime-work"));
+    signer = new Signer(runtime);
     const provider = new ContentProvider(new Transport(signer, import_electron2.app.getPath("userData")), { searchPage: (url) => searchBrowser.read(url) }), recommendations = new RecommendationService(provider);
     library = new LibraryStore(import_electron2.app.getPath("userData"));
     await library.init();
@@ -20383,7 +20531,7 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     await media.init();
     cache = new CacheManager(import_electron2.app.getPath("userData"), media, () => library.snapshot().history);
     await cache.init();
-    var __hgPrefs = { recommend: true, autoNext: true };
+    var __hgPrefs = { recommend: true, autoNext: true, prefetch: true };
     var __hgFeedCache = /* @__PURE__ */ new Map();
     const __hgPrefsPath = import_node_path5.default.join(import_electron2.app.getPath("userData"), "swipe-prefs.json");
     await (0, import_promises5.readFile)(__hgPrefsPath, "utf8").then((raw) => {
@@ -20391,6 +20539,7 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
         const v = JSON.parse(raw);
         if (v && typeof v.recommend === "boolean") __hgPrefs.recommend = v.recommend;
         if (v && typeof v.autoNext === "boolean") __hgPrefs.autoNext = v.autoNext;
+        if (v && typeof v.prefetch === "boolean") __hgPrefs.prefetch = v.prefetch;
       } catch {
       }
     }).catch(() => {
@@ -20429,7 +20578,37 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
       }
       const value = { items: list, hasMore: false, nextOffset: list.length, label: key };
       __hgFeedCache.set(key, { expires: now + 3e5, value });
+      void __hgSwipePrefetch(list);
       return value;
+    }
+    // 刷剧预取：取推荐前 3 部，各自从上次看到的位置起准备 3 集，写入 shuaju 隐藏目录。
+    async function __hgSwipePrefetch(list) {
+      try {
+        if (!__hgPrefs.prefetch) return;
+        const top = (list || []).slice(0, 3), history = library.snapshot().history || [], items = [];
+        for (const work of top) {
+          if (!work || !validId(work.id)) continue;
+          let series;
+          try {
+            series = await provider.getSeries(work.id);
+          } catch {
+            continue;
+          }
+          if (!series || !Array.isArray(series.episodes) || !series.episodes.length) continue;
+          media.learnSeries(series);
+          const his = history.find((h) => String(h.seriesId) === String(series.id));
+          let start = 0;
+          if (his) {
+            const idx = series.episodes.findIndex((e) => e.id === his.episodeId);
+            if (idx >= 0) start = idx;
+          }
+          for (const ep of series.episodes.slice(start, start + 3)) items.push({ episodeId: ep.id, seriesId: series.id, order: ep.order });
+        }
+        await media.prepareShuaju(items);
+        __hgDbg("shuaju plan " + items.length);
+      } catch (e) {
+        __hgDbg("shuaju plan failed: " + (e && e.message));
+      }
     }
     import_electron2.protocol.handle("manju-media", (request) => media.response(request.url, request.headers.get("range")));
     handle2("buffer-episodes", (ids) => media.setBufferWindow(ids));
@@ -20454,13 +20633,38 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     handle2("network-check", () => media.checkNetwork());
     handle2("swipe-feed", (category, refresh = false) => __hgSwipeFeed(category, refresh));
     handle2("swipe-prefs", async (value) => {      if (value !== void 0) {
-        if (!value || typeof value !== "object" || value.recommend !== void 0 && typeof value.recommend !== "boolean" || value.autoNext !== void 0 && typeof value.autoNext !== "boolean") throw new AppError("INVALID_INPUT", "\u63A8\u8350\u8BBE\u7F6E\u65E0\u6548");
+        if (!value || typeof value !== "object" || value.recommend !== void 0 && typeof value.recommend !== "boolean" || value.autoNext !== void 0 && typeof value.autoNext !== "boolean" || value.prefetch !== void 0 && typeof value.prefetch !== "boolean") throw new AppError("INVALID_INPUT", "\u63A8\u8350\u8BBE\u7F6E\u65E0\u6548");
         if (typeof value.recommend === "boolean") __hgPrefs.recommend = value.recommend;
         if (typeof value.autoNext === "boolean") __hgPrefs.autoNext = value.autoNext;
+        if (typeof value.prefetch === "boolean") __hgPrefs.prefetch = value.prefetch;
         await (0, import_promises5.writeFile)(__hgPrefsPath, JSON.stringify(__hgPrefs), "utf8");
         __hgFeedCache.clear();
       }
       return { ...__hgPrefs };
+    });
+    handle2("swipe-playback", async (id, quality) => {
+      if (quality !== void 0) media.setQuality(quality);
+      const hit = media.shuajuResult(id);
+      return hit || media.prepare(id, false);
+    });
+    handle2("swipe-open-series", async (seriesId, episodeId, title) => {
+      if (!window2) createWindow2();
+      const win = window2;
+      if (!win) throw new AppError("WINDOW", "\u4E3B\u7A97\u53E3\u4E0D\u53EF\u7528");
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      if (win.webContents.isLoading()) await new Promise((resolve2) => {
+        const timer = setTimeout(resolve2, 5e3);
+        win.webContents.once("did-finish-load", () => {
+          clearTimeout(timer);
+          resolve2();
+        });
+      });
+      const payload = JSON.stringify({ seriesId: String(seriesId || ""), episodeId: String(episodeId || ""), title: String(title || "") });
+      const opened = await win.webContents.executeJavaScript("(window.__hgOpenSeries ? window.__hgOpenSeries(" + payload + ") : false)").catch(() => false);
+      if (opened !== false && swipeWindow && !swipeWindow.isDestroyed()) swipeWindow.close();
+      return { opened: opened !== false };
     });
     handle2("capabilities", (value) => {
       media.setHevcSupported(!!(value && value.hevc));
@@ -20536,6 +20740,7 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     });
     handle2("library", () => library.snapshot());
     handle2("favorite", (work2, enabled) => library.favorite(work2, enabled));
+    handle2("favorite-reorder", (ids) => library.reorder(ids));
     handle2("progress", (progress) => library.progress(progress));
     updates = new UpdateService(import_electron_updater.autoUpdater, import_electron2.app.getVersion(), import_electron2.app.isPackaged && process.platform === "win32", (state) => {
       if (window2 && !window2.isDestroyed()) window2.webContents.send("update-status", state);

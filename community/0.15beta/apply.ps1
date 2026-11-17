@@ -30,6 +30,8 @@ $targets = @(
   "dist\renderer\watchdog.js",
   "dist\renderer\progress-badge.js",
   "dist\renderer\page-fullscreen.js",
+  "dist\renderer\open-series.js",
+  "dist\renderer\favorites-sort.js",
   "dist\vendor\playback-v5.js"
 )
 

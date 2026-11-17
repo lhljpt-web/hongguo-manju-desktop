@@ -1,4 +1,4 @@
-# 社区发行版 0.2.1（非官方补丁包）
+# 社区发行版 0.2.3（非官方补丁包）
 
 基于上游 **0.1.4** 运行时文件的社区补丁包，只替换 `resources/app/dist` 下的前端/主进程文件，不改动安装器与运行时组件。适用于 Windows x64 已安装 0.1.4 的用户。
 
@@ -15,7 +15,7 @@
 - 播放报错 30 秒自动下一集（普通播放器与刷剧模式共用「连续播放」开关）。
 
 ### 缓存与下载
-- 缓存按剧集分文件夹：`<缓存目录>/<剧集ID>/`，启动时自动迁移根目录旧缓存。
+- 缓存按剧集分文件夹，文件按真实集数命名：`<缓存目录>/<剧集ID>/ep001.mp4`；启动后自动把旧的随机文件名改名迁移。
 - 单文件多线程分段下载（IDM 风格）：1–128 线程可调，按段断点续传。
 - 并行准备上限 128，两季任务按公平份额分配，总数不超过所选并行数。
 - 缓存检查点写入限流 + EPERM/EBUSY 退避重试，显著降低「无法读写视频缓存」失败率。
@@ -28,19 +28,21 @@
 
 ### 界面
 - 卡片角标显示「看到第 X 集」（按剧集 ID + 总集数校验，未看过的剧不显示）。
+- 收藏页拖动排序：在「我的收藏」里按住卡片拖动即可调整顺序，仅对收藏生效。
 - 页面全屏按钮 / F11；全屏播放竖屏视频等比完整显示。
 - 刷剧模式（Demo）：独立窗口、竖向滑动、分类筛选（含言情）、个性化推荐。
+- 刷剧预取：推荐前 3 部各预取 3 集到隐藏目录 `<缓存目录>/shuaju/`，不进缓存列表；「看全集」可跳回主窗口作品页并关闭刷剧窗口。
 
 ## 安装
 
 1. 已安装 0.1.4 桌面版（默认路径 `%LOCALAPPDATA%\Programs\hongguo-manju-desktop` 或自定义目录）。
 2. 关闭应用。
 3. 右键 `apply.ps1` → 使用 PowerShell 运行，按提示输入安装目录（含 `红果漫剧桌面版.exe` 的目录）。
-4. 脚本会备份原文件为 `*.bak-0.2.0`，然后覆盖以下文件：
+4. 脚本会备份原文件为 `*.bak-0.15beta`，然后覆盖以下文件：
    - `resources/app/dist/main/main.cjs`
    - `resources/app/dist/main/preload.cjs`
    - `resources/app/dist/renderer/assets/index-Bd3dQB5J.js`
-   - `resources/app/dist/renderer/swipe.html`、`swipe-app.js`、`watchdog.js`、`progress-badge.js`、`page-fullscreen.js`
+   - `resources/app/dist/renderer/swipe.html`、`swipe-app.js`、`watchdog.js`、`progress-badge.js`、`page-fullscreen.js`、`open-series.js`、`favorites-sort.js`
 
 > 本补丁针对解包目录 `resources/app`。若安装包仍使用 `resources/app.asar`，请先自行解包并让 Electron 加载目录（参考上游构建说明），或使用本仓库 Release 中的完整替换包。
 

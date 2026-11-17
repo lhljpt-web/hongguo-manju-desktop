@@ -1,7 +1,7 @@
 // 红果漫剧 · 刷剧模式（独立窗口 Demo）
 (function () {
   const CATS = ["推荐", "言情", "古装", "甜宠", "悬疑", "逆袭", "全部"];
-  const state = { category: "推荐", items: [], offset: 0, loading: false, pref: true, autoNext: true, history: null };
+  const state = { category: "推荐", items: [], offset: 0, loading: false, pref: true, prefetch: true, autoNext: true, history: null };
   const unwrap = (r) => r && typeof r === "object" && "ok" in r ? (r.ok ? r.data : null) : r;
 
   const css = document.createElement("style");
@@ -96,6 +96,15 @@
     try { await window.desktop.swipePrefs({ autoNext: autoToggle.checked }); } catch {}
   };
   autoRow.appendChild(autoToggle);
+  const prefetchRow = $("div", { class: "row" });
+  prefetchRow.appendChild($("span", { text: "预取 3 集（存 shuaju 隐藏目录，不进缓存列表）" }));
+  const prefetchToggle = $("input", { type: "checkbox" });
+  prefetchToggle.onchange = async () => {
+    state.prefetch = prefetchToggle.checked;
+    try { await window.desktop.swipePrefs({ prefetch: prefetchToggle.checked }); } catch {}
+    if (prefetchToggle.checked) reloadFeed();
+  };
+  prefetchRow.appendChild(prefetchToggle);
   const btns = $("div", { class: "btns" });
   const refreshBtn = $("button", { text: "刷新推荐" });
   refreshBtn.onclick = () => reloadFeed();
@@ -105,6 +114,7 @@
   btns.appendChild(doneBtn);
   panel.appendChild(recoRow);
   panel.appendChild(autoRow);
+  panel.appendChild(prefetchRow);
   panel.appendChild(btns);
   settings.appendChild(panel);
   document.body.appendChild(settings);
@@ -115,8 +125,10 @@
       const prefs = unwrap(await window.desktop.swipePrefs());
       state.pref = !prefs || prefs.recommend !== false;
       state.autoNext = !prefs || prefs.autoNext !== false;
+      state.prefetch = !prefs || prefs.prefetch !== false;
       recoToggle.checked = state.pref;
       autoToggle.checked = state.autoNext;
+      prefetchToggle.checked = state.prefetch;
     } catch {}
   }
 
@@ -153,10 +165,11 @@
     const p = $("p", { text: item.description || "" });
     meta.appendChild(ep); meta.appendChild(h3); meta.appendChild(p);
     const rail = $("div", { class: "hg-rail" });
+    const allBtn = $("button", { text: "全集" });
     const fav = $("button", { text: "收藏" });
     const cacheBtn = $("button", { text: "缓存" });
     const nextBtn = $("button", { text: "下一集" });
-    rail.appendChild(fav); rail.appendChild(cacheBtn); rail.appendChild(nextBtn);
+    rail.appendChild(allBtn); rail.appendChild(fav); rail.appendChild(cacheBtn); rail.appendChild(nextBtn);
     slide.appendChild(status); slide.appendChild(video); slide.appendChild(bar); slide.appendChild(meta); slide.appendChild(rail);
     slide.__hg = { item, video, status, bar, ep, index, prepared: false, series: null, episodes: null, ei: 0, work: item, error: false };
     fav.onclick = async () => {
@@ -166,6 +179,22 @@
       try { await window.desktop.cacheAdd(item.id); cacheBtn.textContent = "已加入缓存"; } catch { cacheBtn.textContent = "缓存失败"; }
     };
     nextBtn.onclick = () => nextEpisode(slide);
+    allBtn.onclick = async () => {
+      const s = slide.__hg;
+      const series = s.series || null;
+      const episode = s.episodes ? s.episodes[s.ei] : null;
+      allBtn.textContent = "打开中";
+      try {
+        const res = unwrap(await window.desktop.swipeOpenSeries(
+          series ? series.id : item.id,
+          episode ? episode.id : "",
+          series ? series.title : item.title
+        ));
+        if (!res || res.opened === false) allBtn.textContent = "打开失败";
+      } catch {
+        allBtn.textContent = "打开失败";
+      }
+    };
     video.addEventListener("timeupdate", () => {
       const d = video.duration || 0;
       if (d > 0) slide.__hg.bar.firstChild.style.width = Math.min(100, video.currentTime / d * 100) + "%";
@@ -256,7 +285,9 @@
     if (!episode) return;
     s.status.textContent = "正在准备第 " + episode.order + " 集…";
     s.ep.textContent = "第 " + episode.order + " 集";
-    const res = unwrap(await window.desktop.playback(episode.id, false, "auto"));
+    const res = unwrap(window.desktop.swipePlay
+      ? await window.desktop.swipePlay(episode.id, "auto")
+      : await window.desktop.playback(episode.id, false, "auto"));
     if (!res || !res.url) throw new Error("片源为空");
     s.video.src = res.url;
     s.video.muted = false;
