@@ -29,7 +29,8 @@ $targets = @(
   "dist\renderer\swipe-app.js",
   "dist\renderer\watchdog.js",
   "dist\renderer\progress-badge.js",
-  "dist\renderer\page-fullscreen.js"
+  "dist\renderer\page-fullscreen.js",
+  "dist\vendor\playback-v5.js"
 )
 
 $appRoot = Join-Path $AppDir "resources\app"
