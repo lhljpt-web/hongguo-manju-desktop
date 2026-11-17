@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {gunzipSync} from 'node:zlib';
 import {Signer,Transport} from '../src/main/transport';
 
 test('an exhausted GET route recovers each episode with a separate registered signed POST',async t=>{
@@ -16,6 +17,7 @@ test('an exhausted GET route recovers each episode with a separate registered si
    const url=new URL(String(input));
    if(url.pathname==='/service/2/device_register/')return Response.json({device_id:String(7123456789012345n+BigInt(++registrations)),install_id:'7123456789012346'});
    if(url.pathname==='/reading/bookapi/video_tab/multi_video_model/v1/'){getIdentities.push(url.searchParams.get('device_id')!);return new Response('')}
+   if(url.pathname==='/novel/player/multi_video_model/player/v1')return new Response('');
    posts.push({url,init});const body=JSON.parse(Buffer.from(init.body).toString());const id=body.mixed_video_id_map['1004'][0];
    return Response.json({code:0,data:{[id]:{video_model:{video_id:id}}}});
   });
@@ -45,17 +47,16 @@ test('failed registration preserves stored identity and a later user action can 
 
 import {signPlayback} from '../src/main/vendor/playback-signing.js';
 import {registeredPlayback} from '../src/main/registered-playback';
-test('an empty legacy request recovers through a registered video-tab GET without a POST',async t=>{
+test('an empty legacy request recovers through a registered gzip V5 player POST',async t=>{
  let registrations=0,gets=0,posts=0;
  t.mock.method(globalThis,'fetch',async(input:any,init:any)=>{
   const url=new URL(String(input));
   if(url.pathname==='/service/2/device_register/'){registrations++;return Response.json({device_id:'7123456789012345',install_id:'7123456789012346'})}
-  if(url.pathname==='/reading/bookapi/video_tab/multi_video_model/v1/'){
-   gets++;assert.equal(init.method,undefined);assert.equal(url.searchParams.get('version_code'),'73932');assert.equal(url.searchParams.get('video_id'),'7695629171300502552');
-   assert.equal(Buffer.from(init.headers['x-argus'],'base64').subarray(0,2).toString('hex'),'f281');
-   assert.ok(Buffer.from(init.headers['x-ladon'],'base64').length>16);
-   assert.equal(init.headers['x-medusa'],undefined);
-   return Response.json({code:0,data:{video_model_data:{'7695629171300502552':{video_model:{status:10}}}}});
+  if(url.pathname==='/novel/player/multi_video_model/player/v1'){
+   gets++;assert.equal(init.method,'POST');assert.equal(url.searchParams.get('version_code'),'74332');assert.match(url.searchParams.get('cdid')!,/^[a-f0-9-]{36}$/);
+   assert.equal(init.headers['content-encoding'],'gzip');assert.ok(init.headers['x-medusa']);
+   const payload=JSON.parse(gunzipSync(init.body).toString());assert.equal(payload.dr_scene,'player');assert.deepEqual(payload.mixed_video_id_map,{'1004':['7695629171300502552']});
+   return Response.json({code:0,data:{'1004':{'7695629171300502552':{video_model:{status:10}}}}});
   }
   if(url.pathname==='/novel/player/multi_video_model/v1/')posts++;
   return new Response('');
@@ -76,8 +77,29 @@ test('POST recovery rejects another episode and stops after a single empty model
    const url=new URL(String(input));
    if(url.pathname==='/service/2/device_register/')return Response.json({device_id:'7123456789012345',install_id:'7123456789012346'});
    if(url.pathname==='/reading/bookapi/video_tab/multi_video_model/v1/')return new Response('');
+   if(url.pathname==='/novel/player/multi_video_model/player/v1')return new Response('');
    posts++;return returned==='empty'?new Response(''):Response.json({code:0,data:{other:{video_model:{}}}});
   });
   await assert.rejects(registeredPlayback('7695629171300502552'),{code:returned==='empty'?'API_EMPTY':'API_FORMAT'});assert.equal(posts,1);t.mock.restoreAll();
+ }
+});
+
+test('V5 retries only an empty primary on the alternate host with the same registration',async t=>{
+ let registrations=0;const models:URL[]=[];
+ t.mock.method(globalThis,'fetch',async(input:any)=>{
+  const url=new URL(String(input));
+  if(url.pathname==='/service/2/device_register/'){registrations++;return Response.json({device_id:'71234567890123',install_id:'71234567890124'})}
+  models.push(url);if(models.length===1)return new Response('');
+  return Response.json({code:0,data:{'7695629171300502552':{video_model:{status:10}}}});
+ });
+ const r=await registeredPlayback('7695629171300502552');assert.equal(r.data.video_model.status,10);assert.equal(registrations,1);assert.equal(models.length,2);
+ assert.notEqual(models[0].hostname,models[1].hostname);assert.equal(models[0].searchParams.get('device_id'),models[1].searchParams.get('device_id'));
+});
+
+test('V5 HTTP, business and wrong-episode responses stop without another request',async t=>{
+ for(const [response,code]of [[()=>new Response('',{status:403}),'API_HTTP'],[()=>Response.json({code:5}),'API_UNAVAILABLE'],[()=>Response.json({code:0,data:{other:{video_model:{}}}}),'API_FORMAT']] as const){
+  let models=0;
+  t.mock.method(globalThis,'fetch',async(input:any)=>{if(new URL(String(input)).pathname==='/service/2/device_register/')return Response.json({device_id:'7123456789012345',install_id:'7123456789012346'});models++;return response()});
+  await assert.rejects(registeredPlayback('7695629171300502552'),{code});assert.equal(models,1);t.mock.restoreAll();
  }
 });

@@ -1,5 +1,14 @@
 # Third-party signing primitives
 
+`playback-v5.js` adapts the pure V5 signing module from
+[`jackotom/hongguo-drama`, commit `4ffff289d6dd289e589a0fd0e65aa7aa5c2a7567`](https://github.com/jackotom/hongguo-drama/blob/4ffff289d6dd289e589a0fd0e65aa7aa5c2a7567/src/native/playback-v5.js), GPL-3.0-only.
+That source credits N3urda/hongguoTV `18c37c2afd0567520135abcae312352542f09083`
+and drpys `22261ad`. Adapted 2026-11-17: ESM exports and the existing sm-crypto
+SM3 backend. The algorithm and input checks are retained. No captured identities,
+sessions, media addresses, account credentials or SDK are included. Public wire
+constants are algorithm parameters. Offline oracle tests use synthetic inputs and
+store only SHA-256 digests, not request signatures.
+
 `playback-signature-551.js` adapts the playback-only Argus/Ladon module from
 [`jackotom/hongguo-drama`, commit `3f5927d0d605ff7742fde8cbd1bb92ffe951b080`](https://github.com/jackotom/hongguo-drama/blob/3f5927d0d605ff7742fde8cbd1bb92ffe951b080/src/native/playback-signature.js), GPL-3.0-only.
 Its header attributes N3urda/hongguoTV `7444bb01aec7b0420740103e551c45f1f66101c9`

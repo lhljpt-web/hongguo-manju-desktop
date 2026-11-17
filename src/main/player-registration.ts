@@ -12,7 +12,7 @@ function packet(data:Buffer){
  const cipher=createCipheriv('aes-128-cbc',material.subarray(0,16),material.subarray(16,32));
  return Buffer.concat([Buffer.from([116,99,5,16,0,0]),salt,cipher.update(Buffer.concat([hash(data),data])),cipher.final()]);
 }
-export async function registerPlayer():Promise<{device_id:string;iid:string}>{
+export async function registerPlayer():Promise<{device_id:string;iid:string;cdid:string}>{
  const device={openudid:randomBytes(8).toString('hex'),clientudid:randomUUID(),cdid:randomUUID()};
  const version='73932';
  const header={
@@ -76,6 +76,6 @@ export async function registerPlayer():Promise<{device_id:string;iid:string}>{
  const text=await response.text();if(text.length>65536)throw new AppError('PLAYER_REGISTRATION','播放设备登记响应异常');
  let value:any;try{value=safeJson(text)}catch{throw new AppError('PLAYER_REGISTRATION','播放设备登记响应异常')}
  const device_id=String(value.device_id_str||value.device_id||''),iid=String(value.install_id_str||value.install_id||'');
- if(!/^[1-9]\d{14,19}$/.test(device_id)||!/^[1-9]\d{14,19}$/.test(iid))throw new AppError('PLAYER_REGISTRATION','播放设备登记未返回有效标识');
- return {device_id,iid};
+ if(!/^[1-9]\d{13,19}$/.test(device_id)||!/^[1-9]\d{13,19}$/.test(iid))throw new AppError('PLAYER_REGISTRATION','播放设备登记未返回有效标识');
+ return {device_id,iid,cdid:device.cdid};
 }
