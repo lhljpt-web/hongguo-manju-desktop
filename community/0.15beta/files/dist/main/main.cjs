@@ -20327,9 +20327,16 @@ var import_electron_updater = __toESM(require_main2(), 1);
 
 // src/main/updater.ts
 // ---- 社区版更新通道（官方 / 社区版） ----
+var __hgFlavor = "community";
 var __hgUpdateChannel = "official";
 var __hgCommunityInfo = { version: "", zip: "", page: "" };
 var __hgCommunityFile = "";
+
+function __hgVersionLabel(value) {
+  const text = String(value || "");
+  if (__hgFlavor !== "community" || !text || /s$/i.test(text)) return text;
+  return text + "s";
+}
 
 function __hgChannelPath() {
   return import_node_path5.default.join(import_electron2.app.getPath("userData"), "update-channel.json");
@@ -20441,13 +20448,92 @@ function __hgCommunityApply() {
   }
 }
 
+// ---- 社区版保活：被官方更新覆盖后自动补回社区补丁 ----
+function __hgGuardScript() {
+  const lines = [
+    "param([string]$AppDir,[string]$Exe,[string]$OldVersion,[string]$Log)",
+    "$ErrorActionPreference='SilentlyContinue'",
+    "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12",
+    "function Note([string]$m) { try { Add-Content -LiteralPath $Log -Value ((Get-Date).ToString('s') + ' ' + $m) } catch { } }",
+    "Note ('guard start, old=' + $OldVersion)",
+    "$root = Join-Path $AppDir 'resources\\app'",
+    "$pkg = Join-Path $root 'package.json'",
+    "$procName = [System.IO.Path]::GetFileNameWithoutExtension($Exe)",
+    "$deadline = (Get-Date).AddHours(2)",
+    "while ((Get-Process -Name $procName -ErrorAction SilentlyContinue) -and ((Get-Date) -lt $deadline)) { Start-Sleep -Milliseconds 700 }",
+    "Note 'old process exited'",
+    "$newVersion = ''",
+    "while ((Get-Date) -lt $deadline) {",
+    "  $raw = $null",
+    "  try { $raw = Get-Content -LiteralPath $pkg -Raw -ErrorAction Stop } catch { }",
+    "  if ($raw) { try { $v = ($raw | ConvertFrom-Json).version } catch { $v = '' } if ($v -and ($v -ne $OldVersion)) { $newVersion = $v; break } }",
+    "  Start-Sleep -Milliseconds 1200",
+    "}",
+    "if (-not $newVersion) { Note 'abort: update not completed'; exit 0 }",
+    "Note ('update completed: ' + $newVersion)",
+    "$api = 'https://api.github.com/repos/zhonglike/hongguo-manju-desktop/releases/latest'",
+    "$rel = $null",
+    "for ($i = 0; $i -lt 20; $i++) { try { $rel = Invoke-RestMethod -Uri $api -Headers @{ 'User-Agent'='hongguo-manju-desktop'; 'Accept'='application/vnd.github+json' } -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 3000 } }",
+    "if (-not $rel) { Note 'abort: query failed'; exit 0 }",
+    "$asset = @($rel.assets) | Where-Object { $_.name -match '(?i)community.*\\.zip$' } | Select-Object -First 1",
+    "if (-not $asset) { Note 'abort: no asset'; exit 0 }",
+    "$zip = Join-Path $env:TEMP ('hg-guard-' + $rel.tag_name + '.zip')",
+    "for ($i = 0; $i -lt 20; $i++) { try { Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -UseBasicParsing -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 3000 } }",
+    "if (-not (Test-Path $zip)) { Note 'abort: download failed'; exit 0 }",
+    "$tmp = Join-Path $env:TEMP ('hg-guard-x-' + [guid]::NewGuid().ToString('N'))",
+    "Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force",
+    "$src = Join-Path $tmp 'files'",
+    "Get-ChildItem -LiteralPath $src -Recurse -File | ForEach-Object {",
+    "  $relPath = $_.FullName.Substring($src.Length + 1)",
+    "  $dst = Join-Path $root $relPath",
+    "  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null",
+    "  for ($i = 0; $i -lt 40; $i++) { try { Copy-Item $_.FullName $dst -Force -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 500 } }",
+    "}",
+    "$bundleDir = Join-Path $src 'dist\\renderer\\assets'",
+    "if (Test-Path $bundleDir) {",
+    "  $patched = Get-ChildItem -LiteralPath $bundleDir -Filter 'index-*.js' -File | Select-Object -First 1",
+    "  if ($patched) {",
+    "    $live = Join-Path $root 'dist\\renderer\\assets'",
+    "    Get-ChildItem -LiteralPath $live -Filter 'index-*.js' -File | Where-Object { $_.Name -ne $patched.Name } | ForEach-Object {",
+    "      Copy-Item $_.FullName ($_.FullName + '.hg-bak') -Force",
+    "      Copy-Item $patched.FullName $_.FullName -Force",
+    "      Note ('rebased bundle: ' + $_.Name)",
+    "    }",
+    "  }",
+    "}",
+    "Remove-Item $tmp -Recurse -Force",
+    "Note ('community patch re-applied on ' + $newVersion)",
+    "exit 0"
+  ];
+  return lines.join("\r\n");
+}
+function __hgSpawnGuard() {
+  try {
+    const dir = import_node_path5.default.join(import_electron2.app.getPath("userData"), "updates");
+    require("node:fs").mkdirSync(dir, { recursive: true });
+    const script = import_node_path5.default.join(dir, "community-guard.ps1");
+    require("node:fs").writeFileSync(script, __hgGuardScript(), "utf8");
+    const appDir = import_node_path5.default.dirname(process.execPath);
+    const exeName = import_node_path5.default.basename(process.execPath);
+    const log = import_node_path5.default.join(dir, "community-guard.log");
+    const version = import_electron2.app.getVersion();
+    const child = require("node:child_process").spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script, "-AppDir", appDir, "-Exe", exeName, "-OldVersion", version, "-Log", log], { detached: true, stdio: "ignore", windowsHide: true });
+    child.unref();
+    __hgDbg("community guard armed for " + version);
+    return true;
+  } catch (error) {
+    __hgDbg("community guard failed: " + (error && error.message));
+    return false;
+  }
+}
+
 var UpdateService = class {
   constructor(engine, version, enabled, changed, shutdown) {
     this.engine = engine;
     this.enabled = enabled;
     this.changed = changed;
     this.shutdown = shutdown;
-    this.state = { status: enabled ? "idle" : "unsupported", currentVersion: version, channel: __hgReadChannel(), message: enabled ? "\u542F\u52A8\u540E\u4F1A\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0\u3002" : "\u5F00\u53D1\u6A21\u5F0F\u4E0D\u6267\u884C\u66F4\u65B0\uFF0C\u8BF7\u4F7F\u7528\u5DF2\u5B89\u88C5\u7684 Windows \u7248\u672C\u3002" };
+    this.state = { status: enabled ? "idle" : "unsupported", currentVersion: __hgVersionLabel(version), channel: __hgReadChannel(), message: enabled ? "\u542F\u52A8\u540E\u4F1A\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0\u3002" : "\u5F00\u53D1\u6A21\u5F0F\u4E0D\u6267\u884C\u66F4\u65B0\uFF0C\u8BF7\u4F7F\u7528\u5DF2\u5B89\u88C5\u7684 Windows \u7248\u672C\u3002" };
     engine.autoDownload = false;
     engine.autoInstallOnAppQuit = false;
     engine.allowPrerelease = false;
@@ -20561,6 +20647,7 @@ var UpdateService = class {
       __hgCommunityApply();
       return;
     }
+    if (__hgFlavor === "community") __hgSpawnGuard();
     try {
       this.engine.quitAndInstall(true, true);
     } catch {
