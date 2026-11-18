@@ -1,3 +1,20 @@
+# 0.2.4 变更记录
+
+日期：2026-11-18
+基线：上游 0.1.4 运行时
+
+## 新增
+- 更新通道可选：「文件 → 更新通道」或托盘菜单在「官方版 / 社区版」之间切换，选择保存在 `userData/update-channel.json`。
+  - 官方版：走原 electron-updater（`lhljpt-web/hongguo-manju-desktop` 的 latest release）。
+  - 社区版：查询 `zhonglike/hongguo-manju-desktop` 最新 release，下载 `Hongguo-Manju-community-*.zip`；点「重启安装」退出应用后由 PowerShell 解压覆盖 `resources/app/dist` 并重启，文件占用自动重试，目录不可写自动 UAC 提权。
+  - 应用内更新面板复用同一套「检查更新 / 立即更新 / 重启安装」按钮，无需改 UI。
+- 新增 IPC `update-channel`（`window.desktop.updateChannel(channel)`），不传参数返回当前状态。
+
+## 注意
+- 选择「官方版」更新会用官方安装包覆盖社区补丁（V5 签名、刷剧、缓存增强等会失效），社区版用户建议保持社区通道。
+
+---
+
 # 0.2.3 变更记录
 
 日期：2026-11-18

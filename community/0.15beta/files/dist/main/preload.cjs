@@ -50,6 +50,7 @@ var api = {
   updateState: () => import_electron.ipcRenderer.invoke("update-state"),
   downloadUpdate: () => import_electron.ipcRenderer.invoke("update-download"),
   installUpdate: () => import_electron.ipcRenderer.invoke("update-install"),
+  updateChannel: (channel) => import_electron.ipcRenderer.invoke("update-channel", channel),
   onUpdate: (listener) => {
     const handler = (_event, state) => listener(state);
     import_electron.ipcRenderer.on("update-status", handler);

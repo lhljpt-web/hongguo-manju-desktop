@@ -20326,13 +20326,128 @@ var import_promises7 = require("node:fs/promises");
 var import_electron_updater = __toESM(require_main2(), 1);
 
 // src/main/updater.ts
+// ---- 社区版更新通道（官方 / 社区版） ----
+var __hgUpdateChannel = "official";
+var __hgCommunityInfo = { version: "", zip: "", page: "" };
+var __hgCommunityFile = "";
+
+function __hgChannelPath() {
+  return import_node_path5.default.join(import_electron2.app.getPath("userData"), "update-channel.json");
+}
+function __hgReadChannel() {
+  try {
+    const value = JSON.parse(require("node:fs").readFileSync(__hgChannelPath(), "utf8"));
+    if (value && value.channel === "community") return "community";
+  } catch {
+  }
+  return "official";
+}
+function __hgWriteChannel(channel) {
+  try {
+    require("node:fs").writeFileSync(__hgChannelPath(), JSON.stringify({ channel }));
+  } catch {
+  }
+}
+function __hgVersionParts(value) {
+  return String(value || "").replace(/^v/i, "").split(/[.+-]/).map((part) => parseInt(part, 10) || 0);
+}
+function __hgVersionNewer(left, right) {
+  const a = __hgVersionParts(left), b = __hgVersionParts(right);
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
+}
+async function __hgCommunityCheck() {
+  const response = await import_electron2.net.fetch("https://api.github.com/repos/zhonglike/hongguo-manju-desktop/releases/latest", { headers: { Accept: "application/vnd.github+json", "User-Agent": "hongguo-manju-desktop" } });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const data = await response.json();
+  const version = String(data.tag_name || "").replace(/^v/i, "");
+  const assets = Array.isArray(data.assets) ? data.assets : [];
+  const asset = assets.find((item) => /\.zip$/i.test(item.name) && /community/i.test(item.name)) || assets.find((item) => /\.zip$/i.test(item.name));
+  __hgCommunityInfo = { version, zip: asset ? asset.browser_download_url : "", page: data.html_url || "" };
+  return __hgCommunityInfo;
+}
+async function __hgCommunityDownload(version, onProgress) {
+  if (!__hgCommunityInfo.zip || !__hgCommunityInfo.zip.includes(String(version))) {
+    await __hgCommunityCheck();
+  }
+  if (!__hgCommunityInfo.zip) throw new Error("NO_ASSET");
+  const dir = import_node_path5.default.join(import_electron2.app.getPath("userData"), "updates");
+  await import_promises7.mkdir(dir, { recursive: true });
+  const file = import_node_path5.default.join(dir, "community-" + __hgCommunityInfo.version + ".zip");
+  const response = await import_electron2.net.fetch(__hgCommunityInfo.zip, { headers: { "User-Agent": "hongguo-manju-desktop" } });
+  if (!response.ok || !response.body) throw new Error("HTTP " + response.status);
+  const total = Number(response.headers.get("content-length")) || 0;
+  const fsMod = require("node:fs");
+  let received = 0;
+  await new Promise(async (resolve2, reject) => {
+    const out = fsMod.createWriteStream(file);
+    const reader = response.body.getReader();
+    out.on("error", reject);
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.length;
+        onProgress(received, total);
+        if (!out.write(Buffer.from(value))) await new Promise((go) => out.once("drain", go));
+      }
+      out.end(resolve2);
+    } catch (error) {
+      out.destroy();
+      reject(error);
+    }
+  });
+  __hgCommunityFile = file;
+  return file;
+}
+function __hgCommunityApply() {
+  try {
+    const zip = __hgCommunityFile;
+    if (!zip || !require("node:fs").existsSync(zip)) throw new Error("MISSING_ZIP");
+    const appDir = import_node_path5.default.dirname(process.execPath);
+    const exeName = import_node_path5.default.basename(process.execPath);
+    const script = import_node_path5.default.join(import_node_path5.default.dirname(zip), "apply-community.ps1");
+    const targets = "dist\\\\main\\\\main.cjs','dist\\\\main\\\\preload.cjs','dist\\\\renderer\\\\assets\\\\index-Bd3dQB5J.js','dist\\\\renderer\\\\swipe.html','dist\\\\renderer\\\\swipe-app.js','dist\\\\renderer\\\\watchdog.js','dist\\\\renderer\\\\progress-badge.js','dist\\\\renderer\\\\page-fullscreen.js','dist\\\\renderer\\\\open-series.js','dist\\\\renderer\\\\favorites-sort.js','dist\\\\vendor\\\\playback-v5.js";
+    const lines = [
+      "param([string]$Zip,[string]$AppDir,[string]$Exe,[string]$Elevated)",
+      "$ErrorActionPreference='Stop'",
+      "if ($Elevated -ne '1') { Start-Sleep -Milliseconds 2200 }",
+      "$tmp = Join-Path $env:TEMP ('hg-cu-' + [guid]::NewGuid().ToString('N'))",
+      "Expand-Archive -LiteralPath $Zip -DestinationPath $tmp -Force",
+      "$targets = @('" + targets + "')",
+      "$root = Join-Path $AppDir 'resources\\app'",
+      "try {",
+      "  foreach ($rel in $targets) {",
+      "    $src = Join-Path $tmp ('files\\' + $rel)",
+      "    $dst = Join-Path $root $rel",
+      "    if (Test-Path $src) { New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null; for ($i = 0; $i -lt 20; $i++) { try { Copy-Item $src $dst -Force -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 500 } } }",
+      "  }",
+      "} catch {",
+      "  if ($Elevated -ne '1') { Start-Process powershell -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Zip',$Zip,'-AppDir',$AppDir,'-Exe',$Exe,'-Elevated','1'); exit }",
+      "  throw",
+      "}",
+      "Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue",
+      "Start-Process (Join-Path $AppDir $Exe)"
+    ];
+    require("node:fs").writeFileSync(script, lines.join("\r\n"), "utf8");
+    const child = require("node:child_process").spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, "-Zip", zip, "-AppDir", appDir, "-Exe", exeName], { detached: true, stdio: "ignore", windowsHide: true });
+    child.unref();
+    return true;
+  } catch (error) {
+    __hgDbg("community apply failed: " + (error && error.message));
+    return false;
+  }
+}
+
 var UpdateService = class {
   constructor(engine, version, enabled, changed, shutdown) {
     this.engine = engine;
     this.enabled = enabled;
     this.changed = changed;
     this.shutdown = shutdown;
-    this.state = { status: enabled ? "idle" : "unsupported", currentVersion: version, message: enabled ? "\u542F\u52A8\u540E\u4F1A\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0\u3002" : "\u5F00\u53D1\u6A21\u5F0F\u4E0D\u6267\u884C\u66F4\u65B0\uFF0C\u8BF7\u4F7F\u7528\u5DF2\u5B89\u88C5\u7684 Windows \u7248\u672C\u3002" };
+    this.state = { status: enabled ? "idle" : "unsupported", currentVersion: version, channel: __hgReadChannel(), message: enabled ? "\u542F\u52A8\u540E\u4F1A\u81EA\u52A8\u68C0\u67E5\u66F4\u65B0\u3002" : "\u5F00\u53D1\u6A21\u5F0F\u4E0D\u6267\u884C\u66F4\u65B0\uFF0C\u8BF7\u4F7F\u7528\u5DF2\u5B89\u88C5\u7684 Windows \u7248\u672C\u3002" };
     engine.autoDownload = false;
     engine.autoInstallOnAppQuit = false;
     engine.allowPrerelease = false;
@@ -20356,8 +20471,9 @@ var UpdateService = class {
   checking;
   downloading;
   installPending = false;
+  channel = __hgReadChannel();
   snapshot() {
-    return { ...this.state };
+    return { ...this.state, channel: this.channel };
   }
   set(change) {
     this.state = { ...this.state, ...change };
@@ -20368,11 +20484,43 @@ var UpdateService = class {
     this.installPending = false;
     this.set({ status: "error", message: downloading ? "\u66F4\u65B0\u4E0B\u8F7D\u6216\u6821\u9A8C\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u4E0E\u78C1\u76D8\u7A7A\u95F4\u540E\u91CD\u8BD5\u3002" : "\u66F4\u65B0\u68C0\u67E5\u6216\u5B89\u88C5\u672A\u5B8C\u6210\uFF0C\u8BF7\u91CD\u8BD5\uFF1B\u4E5F\u53EF\u4ECE\u672C\u4ED3\u5E93 Releases \u624B\u52A8\u4E0B\u8F7D\u5B89\u88C5\u3002" });
   }
+  setChannel(channel) {
+    if (channel !== "official" && channel !== "community") return Promise.resolve(this.snapshot());
+    this.channel = channel;
+    __hgWriteChannel(channel);
+    this.set({ channel, status: this.enabled ? "idle" : "unsupported", nextVersion: void 0, percent: void 0, message: channel === "community" ? "\u66F4\u65B0\u901A\u9053\u5DF2\u5207\u6362\u4E3A\u793E\u533A\u7248\u3002" : "\u66F4\u65B0\u901A\u9053\u5DF2\u5207\u6362\u4E3A\u5B98\u65B9\u7248\u3002" });
+    if (channel === "official") {
+      try {
+        this.engine.setFeedURL({ provider: "github", owner: "lhljpt-web", repo: "hongguo-manju-desktop", releaseType: "release" });
+      } catch {
+      }
+    }
+    return this.check();
+  }
   check() {
     if (!this.enabled || ["available", "downloading", "downloaded", "installing"].includes(this.state.status)) return Promise.resolve(this.snapshot());
     if (this.checking) return this.checking;
-    this.set({ status: "checking", nextVersion: void 0, percent: void 0, message: "\u6B63\u5728\u68C0\u67E5\u65B0\u7248\u672C\u2026" });
+    if (this.channel === "community") return this.checkCommunity();
+    this.set({ status: "checking", nextVersion: void 0, percent: void 0, message: "\u6B63\u5728\u68C0\u67E5\u5B98\u65B9\u65B0\u7248\u672C\u2026" });
     this.checking = Promise.resolve().then(() => this.engine.checkForUpdates()).catch(() => this.failed()).then(() => this.snapshot()).finally(() => {
+      this.checking = void 0;
+    });
+    return this.checking;
+  }
+  checkCommunity() {
+    this.set({ status: "checking", nextVersion: void 0, percent: void 0, message: "\u6B63\u5728\u68C0\u67E5\u793E\u533A\u7248\u65B0\u7248\u672C\u2026" });
+    this.checking = __hgCommunityCheck().then((info) => {
+      if (!info.version) {
+        this.set({ status: "error", message: "\u672A\u627E\u5230\u53EF\u7528\u7684\u793E\u533A\u7248\u53D1\u5E03\u3002" });
+        return;
+      }
+      if (__hgVersionNewer(info.version, this.state.currentVersion)) {
+        __hgCommunityFile = "";
+        this.set({ status: "available", nextVersion: info.version, message: `\u53D1\u73B0\u793E\u533A\u7248 ${info.version}\uFF0C\u70B9\u51FB\u201C\u7ACB\u5373\u66F4\u65B0\u201D\u4E0B\u8F7D\u8865\u4E01\u5305\uFF1B\u5B89\u88C5\u65F6\u4F1A\u66FF\u6362\u6587\u4EF6\u5E76\u91CD\u542F\u5E94\u7528\u3002` });
+        return;
+      }
+      this.set({ status: "current", nextVersion: void 0, message: `\u793E\u533A\u7248\u5DF2\u662F\u6700\u65B0\uFF08${info.version || this.state.currentVersion}\uFF09\u3002` });
+    }).catch(() => this.set({ status: "error", message: "\u793E\u533A\u7248\u66F4\u65B0\u68C0\u67E5\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u91CD\u8BD5\u3002" })).finally(() => {
       this.checking = void 0;
     });
     return this.checking;
@@ -20380,8 +20528,21 @@ var UpdateService = class {
   download() {
     if (this.downloading) return this.downloading;
     if (!this.enabled || !this.state.nextVersion || !["available", "error"].includes(this.state.status)) return Promise.resolve(this.snapshot());
+    if (this.channel === "community") return this.downloadCommunity();
     this.set({ status: "downloading", percent: 0, transferred: 0, total: void 0, message: "\u6B63\u5728\u4E0B\u8F7D\u66F4\u65B0\uFF0C\u4F60\u53EF\u4EE5\u7EE7\u7EED\u89C2\u770B\u3002" });
     this.downloading = Promise.resolve().then(() => this.engine.downloadUpdate()).catch(() => this.failed()).then(() => this.snapshot()).finally(() => {
+      this.downloading = void 0;
+    });
+    return this.downloading;
+  }
+  downloadCommunity() {
+    this.set({ status: "downloading", percent: 0, transferred: 0, total: void 0, message: "\u6B63\u5728\u4E0B\u8F7D\u793E\u533A\u7248\u8865\u4E01\u5305\uFF0C\u4F60\u53EF\u4EE5\u7EE7\u7EED\u89C2\u770B\u3002" });
+    this.downloading = __hgCommunityDownload(this.state.nextVersion, (received, total) => {
+      this.set({ percent: total ? Math.max(0, Math.min(99, Math.round(received / total * 100))) : void 0, transferred: received, total: total || void 0 });
+    }).then(() => {
+      this.set({ status: "downloaded", percent: 100, message: "\u793E\u533A\u7248\u8865\u4E01\u5305\u5DF2\u4E0B\u8F7D\u5E76\u6821\u9A8C\uFF0C\u70B9\u51FB\u201C\u91CD\u542F\u5B89\u88C5\u201D\u5C06\u66FF\u6362\u6587\u4EF6\u5E76\u91CD\u542F\u5E94\u7528\u3002\u6536\u85CF\u4E0E\u89C2\u770B\u8BB0\u5F55\u4F1A\u4FDD\u7559\u3002" });
+      return this.snapshot();
+    }).catch(() => this.failed()).finally(() => {
       this.downloading = void 0;
     });
     return this.downloading;
@@ -20396,6 +20557,10 @@ var UpdateService = class {
   installAfterShutdown() {
     if (!this.installPending) return;
     this.installPending = false;
+    if (this.channel === "community") {
+      __hgCommunityApply();
+      return;
+    }
     try {
       this.engine.quitAndInstall(true, true);
     } catch {
@@ -20760,10 +20925,21 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     handle2("update-state", () => updates.snapshot());
     handle2("update-download", () => updates.download());
     handle2("update-install", () => updates.requestInstall());
+    handle2("update-channel", (channel) => channel === void 0 ? updates.snapshot() : updates.setChannel(channel));
+    __hgUpdateChannel = __hgReadChannel();
     createWindow2();
     try {
       import_electron2.Menu.setApplicationMenu(import_electron2.Menu.buildFromTemplate([
-        { label: "\u6587\u4EF6", submenu: [{ label: "\u5237\u5267\u6A21\u5F0F\uFF08Demo\uFF09", click: () => createSwipeWindow2() }, { type: "separator" }, { label: "\u9000\u51FA", role: "quit" }] },
+        { label: "\u6587\u4EF6", submenu: [{ label: "\u5237\u5267\u6A21\u5F0F\uFF08Demo\uFF09", click: () => createSwipeWindow2() }, { type: "separator" }, { label: "\u66F4\u65B0\u901A\u9053", submenu: [
+          { label: "\u5B98\u65B9\u7248", type: "radio", checked: __hgUpdateChannel === "official", click: () => {
+            __hgUpdateChannel = "official";
+            void updates.setChannel("official");
+          } },
+          { label: "\u793E\u533A\u7248", type: "radio", checked: __hgUpdateChannel === "community", click: () => {
+            __hgUpdateChannel = "community";
+            void updates.setChannel("community");
+          } }
+        ] }, { label: "\u68C0\u67E5\u66F4\u65B0", click: () => void updates.check() }, { type: "separator" }, { label: "\u9000\u51FA", role: "quit" }] },
         { label: "\u7F16\u8F91", submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }] },
         { label: "\u89C6\u56FE", submenu: [{ role: "reload" }, { role: "toggleDevTools" }, { type: "separator" }, { role: "togglefullscreen" }] }
       ]));
@@ -20779,7 +20955,16 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
       };
       tray.on("click", show);
       tray.on("double-click", show);
-      tray.setContextMenu(import_electron2.Menu.buildFromTemplate([{ label: "\u6253\u5F00\u7EA2\u679C\u6F2B\u5267", click: show }, { label: "\u5237\u5267\u6A21\u5F0F\uFF08Demo\uFF09", click: () => createSwipeWindow2() }, { label: "\u9000\u51FA\u8F6F\u4EF6\uFF08\u505C\u6B62\u540E\u53F0\u7F13\u5B58\uFF09", click: () => {
+      tray.setContextMenu(import_electron2.Menu.buildFromTemplate([{ label: "\u6253\u5F00\u7EA2\u679C\u6F2B\u5267", click: show }, { label: "\u5237\u5267\u6A21\u5F0F\uFF08Demo\uFF09", click: () => createSwipeWindow2() }, { type: "separator" }, { label: "\u66F4\u65B0\u901A\u9053", submenu: [
+        { label: "\u5B98\u65B9\u7248", type: "radio", checked: __hgUpdateChannel === "official", click: () => {
+          __hgUpdateChannel = "official";
+          void updates.setChannel("official");
+        } },
+        { label: "\u793E\u533A\u7248", type: "radio", checked: __hgUpdateChannel === "community", click: () => {
+          __hgUpdateChannel = "community";
+          void updates.setChannel("community");
+        } }
+      ] }, { label: "\u68C0\u67E5\u66F4\u65B0", click: () => void updates.check() }, { type: "separator" }, { label: "\u9000\u51FA\u8F6F\u4EF6\uFF08\u505C\u6B62\u540E\u53F0\u7F13\u5B58\uFF09", click: () => {
         exiting = true;
         import_electron2.app.quit();
       } }]));
