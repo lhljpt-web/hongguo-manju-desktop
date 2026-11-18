@@ -20365,6 +20365,30 @@ function __hgVersionNewer(left, right) {
   }
   return false;
 }
+async function __hgCommunityReleases() {
+  const response = await import_electron2.net.fetch("https://api.github.com/repos/zhonglike/hongguo-manju-desktop/releases?per_page=30", { headers: { "User-Agent": "hongguo-manju-desktop", Accept: "application/vnd.github+json" } });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const list = await response.json();
+  const items = [];
+  for (const release of Array.isArray(list) ? list : []) {
+    if (!release || release.draft) continue;
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    const zip = assets.find((item) => /\.zip$/i.test(item.name) && /community/i.test(item.name)) || assets.find((item) => /\.zip$/i.test(item.name));
+    if (!zip) continue;
+    const sums = assets.find((item) => /^sha256sums?\.txt$/i.test(item.name));
+    items.push({
+      version: String(release.tag_name || "").replace(/^v/i, ""),
+      name: release.name || release.tag_name || "",
+      size: Number(zip.size) || 0,
+      date: release.published_at || release.created_at || "",
+      zip: zip.browser_download_url,
+      sums: sums ? sums.browser_download_url : "",
+      page: release.html_url || ""
+    });
+  }
+  return items;
+}
+
 async function __hgCommunityCheck() {
   const response = await import_electron2.net.fetch("https://api.github.com/repos/zhonglike/hongguo-manju-desktop/releases/latest", { headers: { Accept: "application/vnd.github+json", "User-Agent": "hongguo-manju-desktop" } });
   if (!response.ok) throw new Error("HTTP " + response.status);
@@ -20451,7 +20475,7 @@ function __hgCommunityApply() {
     const appDir = import_node_path5.default.dirname(process.execPath);
     const exeName = import_node_path5.default.basename(process.execPath);
     const script = import_node_path5.default.join(import_node_path5.default.dirname(zip), "apply-community.ps1");
-    const targets = "dist\\\\main\\\\main.cjs','dist\\\\main\\\\preload.cjs','dist\\\\renderer\\\\assets\\\\index-Bd3dQB5J.js','dist\\\\renderer\\\\swipe.html','dist\\\\renderer\\\\swipe-app.js','dist\\\\renderer\\\\watchdog.js','dist\\\\renderer\\\\progress-badge.js','dist\\\\renderer\\\\page-fullscreen.js','dist\\\\renderer\\\\open-series.js','dist\\\\renderer\\\\favorites-sort.js','dist\\\\vendor\\\\playback-v5.js";
+    const targets = "dist\\\\main\\\\main.cjs','dist\\\\main\\\\preload.cjs','dist\\\\renderer\\\\assets\\\\index-Bd3dQB5J.js','dist\\\\renderer\\\\swipe.html','dist\\\\renderer\\\\swipe-app.js','dist\\\\renderer\\\\watchdog.js','dist\\\\renderer\\\\progress-badge.js','dist\\\\renderer\\\\page-fullscreen.js','dist\\\\renderer\\\\open-series.js','dist\\\\renderer\\\\favorites-sort.js','dist\\\\renderer\\\\update-drawer.js','dist\\\\vendor\\\\playback-v5.js";
     const lines = [
       "param([string]$Zip,[string]$AppDir,[string]$Exe,[string]$Elevated)",
       "$ErrorActionPreference='Stop'",
@@ -20643,6 +20667,30 @@ var UpdateService = class {
     });
     return this.checking;
   }
+  listCommunity() {
+    return __hgCommunityReleases();
+  }
+  async pickCommunity(version) {
+    const wanted = String(version || "").replace(/^v/i, "");
+    if (!wanted) return this.snapshot();
+    try {
+      const list = await __hgCommunityReleases();
+      const hit = list.find((item) => item.version === wanted);
+      if (!hit) {
+        this.set({ status: "error", message: `\u672A\u627E\u5230\u793E\u533A\u7248 ${wanted} \u7684\u5B89\u88C5\u5305\u3002` });
+        return this.snapshot();
+      }
+      __hgCommunityInfo = { version: hit.version, zip: hit.zip, sums: hit.sums, page: hit.page };
+      __hgCommunityFile = "";
+      this.channel = "community";
+      __hgWriteChannel("community");
+      this.set({ channel: "community", status: "available", nextVersion: hit.version, percent: void 0, message: `\u5DF2\u9009\u62E9\u793E\u533A\u7248 ${hit.version}\uFF0C\u70B9\u51FB\u201C\u7ACB\u5373\u66F4\u65B0\u201D\u4E0B\u8F7D\u5B89\u88C5\u3002` });
+      return this.snapshot();
+    } catch {
+      this.set({ status: "error", message: "\u793E\u533A\u7248\u7248\u672C\u5217\u8868\u83B7\u53D6\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u91CD\u8BD5\u3002" });
+      return this.snapshot();
+    }
+  }
   checkCommunity() {
     this.set({ status: "checking", nextVersion: void 0, percent: void 0, message: "\u6B63\u5728\u68C0\u67E5\u793E\u533A\u7248\u65B0\u7248\u672C\u2026" });
     this.checking = __hgCommunityCheck().then((info) => {
@@ -20774,6 +20822,15 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
             __hgDbg("favorites sort injected");
           }).catch((e) => {
             __hgDbg("favorites sort failed: " + (e && e.message));
+          });
+        } catch {
+        }
+        try {
+          const drawer = require("node:fs").readFileSync(import_node_path5.default.join(__dirname, "../renderer/update-drawer.js"), "utf8");
+          void window2?.webContents.executeJavaScript(drawer, true).then(() => {
+            __hgDbg("update drawer injected");
+          }).catch((e) => {
+            __hgDbg("update drawer failed: " + (e && e.message));
           });
         } catch {
         }
@@ -21063,6 +21120,8 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     handle2("update-download", () => updates.download());
     handle2("update-install", () => updates.requestInstall());
     handle2("update-channel", (channel) => channel === void 0 ? updates.snapshot() : updates.setChannel(channel));
+    handle2("update-versions", () => updates.listCommunity());
+    handle2("update-pick", (version) => updates.pickCommunity(version));
     __hgUpdateChannel = __hgReadChannel();
     createWindow2();
     try {

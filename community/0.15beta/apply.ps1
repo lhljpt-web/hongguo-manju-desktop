@@ -32,6 +32,7 @@ $targets = @(
   "dist\renderer\page-fullscreen.js",
   "dist\renderer\open-series.js",
   "dist\renderer\favorites-sort.js",
+  "dist\renderer\update-drawer.js",
   "dist\vendor\playback-v5.js"
 )
 
