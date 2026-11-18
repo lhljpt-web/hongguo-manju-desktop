@@ -20329,7 +20329,7 @@ var import_electron_updater = __toESM(require_main2(), 1);
 // ---- 社区版更新通道（官方 / 社区版） ----
 var __hgFlavor = "community";
 var __hgUpdateChannel = "official";
-var __hgCommunityInfo = { version: "", zip: "", page: "" };
+var __hgCommunityInfo = { version: "", zip: "", sums: "", page: "" };
 var __hgCommunityFile = "";
 
 function __hgVersionLabel(value) {
@@ -20372,8 +20372,35 @@ async function __hgCommunityCheck() {
   const version = String(data.tag_name || "").replace(/^v/i, "");
   const assets = Array.isArray(data.assets) ? data.assets : [];
   const asset = assets.find((item) => /\.zip$/i.test(item.name) && /community/i.test(item.name)) || assets.find((item) => /\.zip$/i.test(item.name));
-  __hgCommunityInfo = { version, zip: asset ? asset.browser_download_url : "", page: data.html_url || "" };
+  const sums = assets.find((item) => /^sha256sums?\.txt$/i.test(item.name));
+  __hgCommunityInfo = { version, zip: asset ? asset.browser_download_url : "", sums: sums ? sums.browser_download_url : "", page: data.html_url || "" };
   return __hgCommunityInfo;
+}
+function __hgSha256File(file) {
+  return new Promise((resolve3, reject) => {
+    const hash = require("node:crypto").createHash("sha256");
+    const stream = require("node:fs").createReadStream(file);
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve3(hash.digest("hex").toUpperCase()));
+  });
+}
+async function __hgVerifyCommunity(file) {
+  if (!__hgCommunityInfo.sums) return "missing";
+  try {
+    const response = await import_electron2.net.fetch(__hgCommunityInfo.sums, { headers: { "User-Agent": "hongguo-manju-desktop" } });
+    if (!response.ok) return "missing";
+    const text = await response.text();
+    const remoteName = import_node_path5.default.basename(new URL(__hgCommunityInfo.zip).pathname);
+    const line = String(text).split(/\r?\n/).find((item) => item.toLowerCase().includes(remoteName.toLowerCase()));
+    const expected = line ? (line.match(/[a-fA-F0-9]{64}/) || [""])[0].toUpperCase() : "";
+    if (!expected) return "missing";
+    const actual = await __hgSha256File(file);
+    __hgDbg("community checksum " + (actual === expected ? "ok" : "mismatch"));
+    return actual === expected ? "ok" : "mismatch";
+  } catch {
+    return "missing";
+  }
 }
 async function __hgCommunityDownload(version, onProgress) {
   if (!__hgCommunityInfo.zip || !__hgCommunityInfo.zip.includes(String(version))) {
@@ -20406,6 +20433,14 @@ async function __hgCommunityDownload(version, onProgress) {
       reject(error);
     }
   });
+  const check = await __hgVerifyCommunity(file);
+  if (check === "mismatch") {
+    try {
+      fsMod.unlinkSync(file);
+    } catch {
+    }
+    throw new Error("CHECKSUM");
+  }
   __hgCommunityFile = file;
   return file;
 }
@@ -20480,6 +20515,21 @@ function __hgGuardScript() {
     "$zip = Join-Path $env:TEMP ('hg-guard-' + $rel.tag_name + '.zip')",
     "for ($i = 0; $i -lt 20; $i++) { try { Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -UseBasicParsing -ErrorAction Stop; break } catch { Start-Sleep -Milliseconds 3000 } }",
     "if (-not (Test-Path $zip)) { Note 'abort: download failed'; exit 0 }",
+    "$sums = @($rel.assets) | Where-Object { $_.name -match '(?i)^sha256sums?\\.txt$' } | Select-Object -First 1",
+    "if ($sums) {",
+    "  $sumFile = Join-Path $env:TEMP ('hg-guard-sums-' + $rel.tag_name + '.txt')",
+    "  try {",
+    "    Invoke-WebRequest -Uri $sums.browser_download_url -OutFile $sumFile -UseBasicParsing -ErrorAction Stop",
+    "    $remoteName = [System.IO.Path]::GetFileName($asset.browser_download_url)",
+    "    $line = Get-Content -LiteralPath $sumFile | Where-Object { $_ -match [regex]::Escape($remoteName) } | Select-Object -First 1",
+    "    $expected = if ($line) { ([regex]::Match($line, '[A-Fa-f0-9]{64}')).Value.ToUpper() } else { '' }",
+    "    if ($expected) {",
+    "      $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToUpper()",
+    "      if ($actual -ne $expected) { Note 'abort: checksum mismatch'; exit 0 }",
+    "      Note 'checksum ok'",
+    "    }",
+    "  } catch { Note 'checksum skipped' }",
+    "}",
     "$tmp = Join-Path $env:TEMP ('hg-guard-x-' + [guid]::NewGuid().ToString('N'))",
     "Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force",
     "$src = Join-Path $tmp 'files'",

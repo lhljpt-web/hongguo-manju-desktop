@@ -1,4 +1,4 @@
-# 社区发行版 0.2.5s（非官方补丁包）
+# 社区发行版 0.2.6s（非官方补丁包）
 
 基于上游 **0.1.4** 运行时文件的社区补丁包，只替换 `resources/app/dist` 下的前端/主进程文件，不改动安装器与运行时组件。适用于 Windows x64 已安装 0.1.4 的用户。
 
@@ -36,7 +36,7 @@
 ### 更新通道
 - 菜单「文件 → 更新通道」或托盘右键菜单可在「官方版 / 社区版」之间切换，选择持久化到 `userData/update-channel.json`。
 - 官方版：原 electron-updater 流程，检查 `lhljpt-web/hongguo-manju-desktop` 的 latest release。
-- 社区版：检查 `zhonglike/hongguo-manju-desktop` 最新 release，下载补丁 zip 后点「重启安装」，由 PowerShell 解压覆盖 `dist` 文件并重启（占用自动重试，无写权限自动 UAC 提权）。
+- 社区版：检查 `zhonglike/hongguo-manju-desktop` 最新 release，下载补丁 zip 后先比对同一 Release 的 `SHA256SUMS.txt`（不一致直接判失败、删除半包），点「重启安装」后由 PowerShell 解压覆盖 `dist` 文件并重启（占用自动重试，无写权限自动 UAC 提权）。
 - 社区版保活：社区版切到官方通道更新时，退出前会拉起后台守护脚本，等官方更新**真正装完**（检测 `package.json` 版本变化）后自动把社区补丁覆盖回来，然后自行退出；正常关闭不会触发。日志见 `userData/updates/community-guard.log`。
 - 版本约定：以后每个社区发行版都带 `s` 后缀（如 `0.2.5s`），官方版不带，方便一眼区分；`package.json` 内仍为合法 semver。
 - 注意：官方更新会先把社区补丁整个覆盖，再由守护脚本补回；若官方大改前端接口，补丁可能不完全兼容。
