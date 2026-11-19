@@ -1,3 +1,16 @@
+# 0.2.8s 变更记录
+
+日期：2026-11-19
+基线：上游 0.1.4 运行时
+
+## 修复
+- 修复主进程偶发弹窗“A JavaScript error occurred in the main process → AssertionError [ERR_ASSERTION]: assert(!this.paused)”（undici 在连接提前结束时触发）：
+  - 主进程注册 `uncaughtException` 兜底，只吞掉这一条 undici/`onHttpSocketEnd`/`!this.paused` 断言并写调试日志，其他异常仍按原逻辑抛出。
+  - 社区更新所有 `net.fetch` 在非 2xx / 提前中断时显式 `body.cancel()`；zip 流式下载失败时先 `reader.cancel()` 再销毁文件流，避免残留未消费的响应体。
+- 不影响原有官方更新与正常播放流程。
+
+---
+
 # 0.2.7s 变更记录
 
 日期：2026-11-18

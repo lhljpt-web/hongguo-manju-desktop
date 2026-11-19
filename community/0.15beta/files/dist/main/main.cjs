@@ -20327,6 +20327,16 @@ var import_electron_updater = __toESM(require_main2(), 1);
 
 // src/main/updater.ts
 // ---- 社区版更新通道（官方 / 社区版） ----
+function __hgOnUncaught(error) {
+  const text = String((error && (error.stack || error.message)) || error);
+  if (error && error.code === "ERR_ASSERTION" && /undici|onHttpSocketEnd|!this\.paused/.test(text)) {
+    __hgDbg("swallowed undici socket assertion: " + String(error.message || "").split("\n")[0]);
+    return;
+  }
+  process.removeListener("uncaughtException", __hgOnUncaught);
+  throw error;
+}
+process.on("uncaughtException", __hgOnUncaught);
 var __hgFlavor = "community";
 var __hgUpdateChannel = "official";
 var __hgCommunityInfo = { version: "", zip: "", sums: "", page: "" };
@@ -20367,7 +20377,13 @@ function __hgVersionNewer(left, right) {
 }
 async function __hgCommunityReleases() {
   const response = await import_electron2.net.fetch("https://api.github.com/repos/zhonglike/hongguo-manju-desktop/releases?per_page=30", { headers: { "User-Agent": "hongguo-manju-desktop", Accept: "application/vnd.github+json" } });
-  if (!response.ok) throw new Error("HTTP " + response.status);
+  if (!response.ok) {
+    try {
+      await response.body?.cancel();
+    } catch {
+    }
+    throw new Error("HTTP " + response.status);
+  }
   const list = await response.json();
   const items = [];
   for (const release of Array.isArray(list) ? list : []) {
@@ -20391,7 +20407,13 @@ async function __hgCommunityReleases() {
 
 async function __hgCommunityCheck() {
   const response = await import_electron2.net.fetch("https://api.github.com/repos/zhonglike/hongguo-manju-desktop/releases/latest", { headers: { Accept: "application/vnd.github+json", "User-Agent": "hongguo-manju-desktop" } });
-  if (!response.ok) throw new Error("HTTP " + response.status);
+  if (!response.ok) {
+    try {
+      await response.body?.cancel();
+    } catch {
+    }
+    throw new Error("HTTP " + response.status);
+  }
   const data = await response.json();
   const version = String(data.tag_name || "").replace(/^v/i, "");
   const assets = Array.isArray(data.assets) ? data.assets : [];
@@ -20413,7 +20435,13 @@ async function __hgVerifyCommunity(file) {
   if (!__hgCommunityInfo.sums) return "missing";
   try {
     const response = await import_electron2.net.fetch(__hgCommunityInfo.sums, { headers: { "User-Agent": "hongguo-manju-desktop" } });
-    if (!response.ok) return "missing";
+    if (!response.ok) {
+      try {
+        await response.body?.cancel();
+      } catch {
+      }
+      return "missing";
+    }
     const text = await response.text();
     const remoteName = import_node_path5.default.basename(new URL(__hgCommunityInfo.zip).pathname);
     const line = String(text).split(/\r?\n/).find((item) => item.toLowerCase().includes(remoteName.toLowerCase()));
@@ -20435,7 +20463,13 @@ async function __hgCommunityDownload(version, onProgress) {
   await import_promises7.mkdir(dir, { recursive: true });
   const file = import_node_path5.default.join(dir, "community-" + __hgCommunityInfo.version + ".zip");
   const response = await import_electron2.net.fetch(__hgCommunityInfo.zip, { headers: { "User-Agent": "hongguo-manju-desktop" } });
-  if (!response.ok || !response.body) throw new Error("HTTP " + response.status);
+  if (!response.ok || !response.body) {
+    try {
+      await response.body?.cancel();
+    } catch {
+    }
+    throw new Error("HTTP " + response.status);
+  }
   const total = Number(response.headers.get("content-length")) || 0;
   const fsMod = require("node:fs");
   let received = 0;
@@ -20453,6 +20487,10 @@ async function __hgCommunityDownload(version, onProgress) {
       }
       out.end(resolve2);
     } catch (error) {
+      try {
+        await reader.cancel();
+      } catch {
+      }
       out.destroy();
       reject(error);
     }
