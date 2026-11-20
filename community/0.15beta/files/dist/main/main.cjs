@@ -17226,6 +17226,8 @@ var MediaCache = class {
   protectedIds = /* @__PURE__ */ new Set();
   pausedMessage = "";
   failed = /* @__PURE__ */ new Set();
+  retries = /* @__PURE__ */ new Map();
+  retryTimer = null;
   closing = false;
   processing = 0;
   processingQueue = [];
@@ -17362,8 +17364,14 @@ var MediaCache = class {
   retryBuffer(ids) {
     if (this.closing) return this.bufferState();
     this.pausedMessage = "";
-    if (ids) for (const id of ids) this.failed.delete(id);
-    else this.failed.clear();
+    if (ids) for (const id of ids) {
+      this.failed.delete(id);
+      this.retries.delete(id);
+    }
+    else {
+      this.failed.clear();
+      this.retries.clear();
+    }
     if (!ids && this.window[0] && !this.entries.has(this.window[0]) && !this.jobs.has(this.window[0])) this.enqueue(this.window[0], false, true);
     this.pump();
     return this.bufferState();
@@ -17922,18 +17930,33 @@ var MediaCache = class {
       };
       running.completion = this.run(running).then((value) => {
         finish();
+        this.retries.delete(running.id);
         running.resolve(value);
         this.pump();
       }, (error) => {
         if (!running.controller.signal.aborted) {
           if (error instanceof AppError && ["DISK_SPACE", "DISK_CHECK", "CACHE_BUDGET"].includes(error.code)) this.pausedMessage = error.message;
-          else this.failed.add(running.id);
+          else if (["API_EMPTY", "API_COOLDOWN", "API_HTTP", "API_UNAVAILABLE", "API_FORMAT", "NETWORK", "WEB_PUBLIC_UNAVAILABLE"].includes(error && error.code) && (this.retries.get(running.id) || 0) < 10) {
+            this.retries.set(running.id, (this.retries.get(running.id) || 0) + 1);
+            this.failed.delete(running.id);
+            this.scheduleRetry();
+          } else this.failed.add(running.id);
         }
         finish();
         running.reject(error);
         this.pump();
       });
     }
+  }
+  scheduleRetry() {
+    if (this.retryTimer || this.closing) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (this.closing) return;
+      this.failed.clear();
+      this.pump();
+    }, 180000);
+    this.retryTimer.unref?.();
   }
   async run(job) {
     const signal = job.controller.signal;
@@ -18665,6 +18688,9 @@ function __hgWriteReg(id) {
 }
 var __hgGateLock = Promise.resolve();
 var __hgGateLast = 0;
+var __hgPbEmpty = 0;
+var __hgPbBlockedUntil = 0;
+var __hgLastForceReg = 0;
 function __hgGate(ms) {
   var run = __hgGateLock.then(function () {
     var wait = ms - (Date.now() - __hgGateLast);
@@ -18675,7 +18701,7 @@ function __hgGate(ms) {
 }
 async function registerPlayer(__hgForce) {
   if (!__hgForce) {
-    var __hgC = __hgReadReg(600000);
+    var __hgC = __hgReadReg(3600000);
     if (__hgC) { __hgDbg("reg cache HIT " + __hgC.device_id + " age=" + Math.round((Date.now() - __hgC.at) / 1000) + "s"); return { device_id: __hgC.device_id, iid: __hgC.iid }; }
   }
   const device = { openudid: (0, import_node_crypto5.randomBytes)(8).toString("hex"), clientudid: (0, import_node_crypto5.randomUUID)(), cdid: (0, import_node_crypto5.randomUUID)() };
@@ -19358,7 +19384,8 @@ function __hgLoadV5() {
   return __hgV5Module;
 }
 async function registeredPlayback(episodeId) {
-  await __hgGate(120);
+  if (Date.now() < __hgPbBlockedUntil) throw new AppError("API_COOLDOWN", "\u5185\u5BB9\u6E90\u4E34\u65F6\u9650\u5236\uFF0C" + Math.ceil((__hgPbBlockedUntil - Date.now()) / 1000) + " \u79D2\u540E\u81EA\u52A8\u91CD\u8BD5");
+  await __hgGate(800);
   var identity;
   try {
     identity = await registerPlayer();
@@ -19426,7 +19453,10 @@ async function registeredPlayback(episodeId) {
     return null;
   };
   var v5hit = await __hgSendV5();
-  if (v5hit) return v5hit;
+  if (v5hit) {
+    __hgPbEmpty = 0;
+    return v5hit;
+  }
   var __hgSend = async function () {
     var ticket = Date.now(), ts = Math.floor(ticket / 1000);
     var values = {
@@ -19482,14 +19512,19 @@ async function registeredPlayback(episodeId) {
   if (!response.ok) throw new AppError("API_HTTP", `\u64AD\u653E\u8D44\u6E90\u6682\u4E0D\u53EF\u7528\uFF08${response.status}\uFF09`);
   let text2 = await response.text();
   __hgDbg("v551 POST ep=" + episodeId + " status=" + response.status + " len=" + text2.length);
-  if (!text2.trim()) {
+  if (!text2.trim() && Date.now() - __hgLastForceReg > 5 * 60 * 1000) {
+    __hgLastForceReg = Date.now();
     __hgDbg("v551 POST empty -> fresh identity retry");
     identity = await registerPlayer(true);
     response = await __hgSend();
     text2 = await response.text();
     __hgDbg("v551 retry ep=" + episodeId + " status=" + response.status + " len=" + text2.length);
   }
-  if (!text2.trim()) throw new AppError("API_EMPTY", "\u672C\u96C6\u64AD\u653E\u8D44\u6E90\u8FD4\u56DE\u7A7A\u7ED3\u679C\uFF0C\u8BF7\u91CD\u8BD5\u5F53\u524D\u96C6");
+  if (!text2.trim()) {
+    __hgPbEmpty++;
+    if (__hgPbEmpty >= 3) __hgPbBlockedUntil = Date.now() + 3 * 60 * 1000;
+    throw new AppError("API_EMPTY", "\u672C\u96C6\u64AD\u653E\u8D44\u6E90\u8FD4\u56DE\u7A7A\u7ED3\u679C\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u5F53\u524D\u96C6");
+  }
   if (text2.length > 8 * 1024 * 1024) throw new AppError("API_FORMAT", "\u64AD\u653E\u8D44\u6E90\u54CD\u5E94\u8FC7\u5927");
   let result;
   try {
@@ -19501,6 +19536,7 @@ async function registeredPlayback(episodeId) {
   if (code !== 0) throw new AppError("API_UNAVAILABLE", "\u672C\u96C6\u64AD\u653E\u8D44\u6E90\u6682\u4E0D\u53EF\u7528");
   const item = result.data?.[episodeId];
   if (!item || typeof item !== "object" || !item.video_model) throw new AppError("API_FORMAT", "\u6765\u6E90\u672A\u8FD4\u56DE\u6240\u9009\u5206\u96C6\u7684\u64AD\u653E\u8D44\u6E90");
+  __hgPbEmpty = 0;
   return { code: 0, data: item };
 }
 
