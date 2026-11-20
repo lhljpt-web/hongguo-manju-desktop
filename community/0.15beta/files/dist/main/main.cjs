@@ -17217,6 +17217,7 @@ var MediaCache = class {
   seriesOf = /* @__PURE__ */ new Map();
   orderOf = /* @__PURE__ */ new Map();
   shuajuEntries = /* @__PURE__ */ new Map();
+  keyAliases = /* @__PURE__ */ new Map();
   shuajuQueue = [];
   shuajuActive = 0;
   groupCursor = 0;
@@ -17746,6 +17747,47 @@ var MediaCache = class {
       }
     }
   }
+  // 缓存完成后立即按真实集数改名（ep001.mp4），不必等下次启动迁移。
+  async renameEntry(entry) {
+    try {
+      if (!entry || /^ep\d{1,4}$/.test(entry.key)) return;
+      if (import_node_path2.default.dirname(entry.file) === this.shuajuDir()) return;
+      const key = this.keyFor(entry.episodeId) || await this.resolveKey(entry.episodeId);
+      if (!key || key === entry.key) return;
+      const dir = import_node_path2.default.dirname(entry.file);
+      const target = import_node_path2.default.join(dir, key + ".mp4");
+      if (await (0, import_promises4.stat)(target).catch(() => null)) return;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await (0, import_promises4.rename)(entry.file, target);
+          break;
+        } catch (error) {
+          if (!["EPERM", "EBUSY", "EACCES"].includes(error.code) || attempt >= 4) return;
+          await new Promise((r) => setTimeout(r, 120 * (attempt + 1)));
+        }
+      }
+      this.keyAliases.set(entry.key, entry);
+      const oldMeta = import_node_path2.default.join(dir, entry.key + ".json");
+      entry.key = key;
+      entry.file = target;
+      await (0, import_promises4.writeFile)(import_node_path2.default.join(dir, key + ".json"), JSON.stringify({ ...entry, file: void 0 })).catch(() => {
+      });
+      await (0, import_promises4.unlink)(oldMeta).catch(() => {
+      });
+      __hgDbg("cache renamed " + entry.episodeId + " -> " + key);
+    } catch {
+    }
+  }
+  async resolveKey(episodeId) {
+    const known = this.keyFor(episodeId);
+    if (known) return known;
+    try {
+      const series = await this.options.resolveSeries?.(String(episodeId));
+      if (series) this.learnSeries(series);
+    } catch {
+    }
+    return this.keyFor(episodeId);
+  }
   get usedBytes() {
     return [...this.entries.values()].reduce((sum, entry) => sum + (entry.bytes || 0), 0) + [...this.partialBytes.values()].reduce((sum, bytes) => sum + bytes, 0);
   }
@@ -18098,6 +18140,7 @@ var MediaCache = class {
         await (0, import_promises4.unlink)(previous.file).catch(() => {
         });
       }
+      await this.renameEntry(entry);
       await this.trim();
       return this.result(entry);
     } catch (error) {
@@ -18194,7 +18237,7 @@ var MediaCache = class {
       if (range && !/^bytes=0-\d*$/.test(range)) return new Response(null, { status: 416 });
       return growing.response();
     }
-    const entry = this.entries.get(ref) || this.shuajuEntries.get(ref) || [...this.entries.values()].find((e) => e.key === ref);
+    const entry = this.entries.get(ref) || this.shuajuEntries.get(ref) || this.keyAliases.get(ref) || [...this.entries.values()].find((e) => e.key === ref);
     if (!entry) return new Response(null, { status: 404 });
     const info = await (0, import_promises4.stat)(entry.file).catch(() => null);
     if (!info) return new Response(null, { status: 404 });
@@ -18324,6 +18367,17 @@ var CacheManager = class {
       void this.media.migrateLayout();
     } catch {
     }
+  }
+  findSeriesByEpisode(episodeId) {
+    const id = String(episodeId);
+    const hit = (series) => series && Array.isArray(series.episodes) && series.episodes.some((episode) => String(episode.id) === id);
+    for (const task of this.value?.tasks || []) {
+      if (hit(task && task.series)) return task.series;
+    }
+    for (const series of this.value?.knownSeries || []) {
+      if (hit(series)) return series;
+    }
+    return null;
   }
   get closeToTray() {
     return this.value.closeToTray;
@@ -20924,7 +20978,7 @@ if (!import_electron2.app.requestSingleInstanceLock()) {
     const provider = new ContentProvider(new Transport(signer, import_electron2.app.getPath("userData")), { searchPage: (url) => searchBrowser.read(url) }), recommendations = new RecommendationService(provider);
     library = new LibraryStore(import_electron2.app.getPath("userData"));
     await library.init();
-    media = new MediaCache(await CacheManager.directory(import_electron2.app.getPath("userData")), import_node_path5.default.join(runtime, "ffmpeg.exe"), (id, quality) => provider.getResource(id, quality), { concurrency: 4, segments: 8, diagnostics });
+    media = new MediaCache(await CacheManager.directory(import_electron2.app.getPath("userData")), import_node_path5.default.join(runtime, "ffmpeg.exe"), (id, quality) => provider.getResource(id, quality), { concurrency: 4, segments: 8, diagnostics, resolveSeries: (episodeId) => cache && cache.findSeriesByEpisode ? cache.findSeriesByEpisode(episodeId) : null });
     await media.init();
     cache = new CacheManager(import_electron2.app.getPath("userData"), media, () => library.snapshot().history);
     await cache.init();
