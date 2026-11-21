@@ -16998,7 +16998,7 @@ var ProgressiveEncoder = class {
     });
     void this.ready.catch(() => {
     });
-    const args = ["-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], "-i", "pipe:0", ...["h264", "avc1"].includes(codec) ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs && hwArgs.length ? hwArgs : ["-c:v", "libx264", "-preset", "veryfast", "-threads", String(threads || 2), "-crf", "20"])], "-c:a", "aac", "-movflags", "+empty_moov+default_base_moof", "-frag_duration", "500000", "-flush_packets", "1", "-y", output];
+    const args = ["-hide_banner", "-loglevel", "error", "-nostats", "-xerror", "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], "-i", "pipe:0", ...["h264", "avc1"].includes(codec) ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs && hwArgs.length ? hwArgs : ["-c:v", "libx264", "-preset", "veryfast", "-threads", String(threads || 2), "-crf", "20"])], "-c:a", "aac", "-movflags", "+empty_moov+default_base_moof", "-frag_duration", "500000", "-flush_packets", "1", "-y", output];
     this.child = (0, import_node_child_process.spawn)(ffmpeg, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let progress = "", actual = 0, polling = false;
     const child2 = this.child, abort = () => child2.kill();
@@ -18221,9 +18221,11 @@ var MediaCache = class {
   transcodeOnce(input, output, key, duration, signal, report, copy = false, fast = false) {
     check2(signal);
     return new Promise((resolve, reject) => {
-      const hwArgs = !copy && !fast && this.decodeMode !== 2 && this.hw && Array.isArray(this.hw.args) && this.hw.args.length ? this.hw.args : null;
+      const hwEncode = !copy && !fast && this.decodeMode !== 2 && this.hw && Array.isArray(this.hw.args) && this.hw.args.length;
+      const hwDecode = !copy && !fast && (this.decodeMode === 1 || this.decodeMode === 3) && this.hw;
+      const hwArgs = hwEncode ? this.hw.args : null;
       const videoArgs = copy ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs || ["-c:v", "libx264", "-preset", fast ? "ultrafast" : "veryfast", "-threads", String(fast ? 1 : this.decodeThreads), "-crf", "20"])];
-      const args = ["-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], ...!copy && !fast && this.decodeMode !== 2 && this.hw ? ["-hwaccel", this.hw.name === "h264_qsv" ? "qsv" : "auto"] : [], "-i", input, ...videoArgs, "-c:a", "aac", "-movflags", "+faststart", "-fs", String(FILE_LIMIT + 1), "-y", output];
+      const args = ["-hide_banner", "-loglevel", "error", "-nostats", ...copy ? [] : ["-xerror"], "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], ...hwDecode ? ["-hwaccel", this.hw.name === "h264_qsv" ? "qsv" : "auto"] : [], "-i", input, ...videoArgs, "-c:a", "aac", "-movflags", "+faststart", "-fs", String(FILE_LIMIT + 1), "-y", output];
       const child2 = (0, import_node_child_process2.spawn)(this.ffmpeg, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
       let progress = "";
       let __hgErr = "";
