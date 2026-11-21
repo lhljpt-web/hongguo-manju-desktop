@@ -17267,7 +17267,7 @@ var MediaCache = class {
       if (/^(?:[a-f0-9]{32}|ep\d{1,4})\.json$/.test(name)) {
         try {
           const e = JSON.parse(await (0, import_promises4.readFile)(import_node_path2.default.join(this.directory, name), "utf8"));
-          if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, 32)) {
+          if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, -5)) {
             e.file = import_node_path2.default.join(this.directory, e.key + ".mp4");
             const info = await (0, import_promises4.stat)(e.file);
             if (info.size > 0 && info.size <= FILE_LIMIT) {
@@ -17301,10 +17301,15 @@ var MediaCache = class {
       if (dirent.name === "shuaju") continue;
       const dir = import_node_path2.default.join(this.directory, dirent.name);
       for (const name of await (0, import_promises4.readdir)(dir).catch(() => [])) {
+        if (/^(?:[a-f0-9]{32}|ep\d{1,4})\.(?:input|working)\.mp4$/.test(name)) {
+          await (0, import_promises4.unlink)(import_node_path2.default.join(dir, name)).catch(() => {
+          });
+          continue;
+        }
         if (!/^(?:[a-f0-9]{32}|ep\d{1,4})\.json$/.test(name)) continue;
         try {
           const e = JSON.parse(await (0, import_promises4.readFile)(import_node_path2.default.join(dir, name), "utf8"));
-          if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, 32)) {
+          if (e.policy === CACHE_POLICY && validId(e.episodeId) && Number.isFinite(e.duration) && e.duration > 0 && typeof e.definition === "string" && e.key === name.slice(0, -5)) {
             e.file = import_node_path2.default.join(dir, e.key + ".mp4");
             const info = await (0, import_promises4.stat)(e.file);
             if (info.size > 0 && info.size <= FILE_LIMIT) {
