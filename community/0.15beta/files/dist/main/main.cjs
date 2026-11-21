@@ -18691,6 +18691,7 @@ var __hgGateLast = 0;
 var __hgPbEmpty = 0;
 var __hgPbBlockedUntil = 0;
 var __hgLastForceReg = 0;
+var __hgRegBlockedUntil = 0;
 function __hgGate(ms) {
   var run = __hgGateLock.then(function () {
     var wait = ms - (Date.now() - __hgGateLast);
@@ -18701,6 +18702,10 @@ function __hgGate(ms) {
 }
 async function registerPlayer(__hgForce) {
   if (!__hgForce) {
+    if (Date.now() < __hgRegBlockedUntil) {
+      var __hgBlocked = __hgReadReg(86400000);
+      if (__hgBlocked) { __hgDbg("reg skip (blocked) " + __hgBlocked.device_id); return { device_id: __hgBlocked.device_id, iid: __hgBlocked.iid }; }
+    }
     var __hgC = __hgReadReg(3600000);
     if (__hgC) { __hgDbg("reg cache HIT " + __hgC.device_id + " age=" + Math.round((Date.now() - __hgC.at) / 1000) + "s"); return { device_id: __hgC.device_id, iid: __hgC.iid }; }
   }
@@ -18777,7 +18782,8 @@ async function registerPlayer(__hgForce) {
   const device_id = String(value.device_id_str || value.device_id || ""), iid = String(value.install_id_str || value.install_id || "");
   if (!/^[1-9]\d{14,19}$/.test(device_id) || !/^[1-9]\d{14,19}$/.test(iid)) {
     __hgDbg("reg RATE-LIMITED device_id=" + device_id + " iid=" + iid);
-    var __hgStale = __hgReadReg(3600000);
+    __hgRegBlockedUntil = Date.now() + 5 * 60 * 1000;
+    var __hgStale = __hgReadReg(86400000);
     if (__hgStale) { __hgDbg("reg fallback to cache " + __hgStale.device_id); return { device_id: __hgStale.device_id, iid: __hgStale.iid }; }
     throw new AppError("PLAYER_REGISTRATION", "\u64AD\u653E\u8bbe\u5907\u767B\u8BB0\u672A\u8FD4\u56DE\u6709\u6548\u6807\u8BC6");
   }                                                           
@@ -19512,7 +19518,7 @@ async function registeredPlayback(episodeId) {
   if (!response.ok) throw new AppError("API_HTTP", `\u64AD\u653E\u8D44\u6E90\u6682\u4E0D\u53EF\u7528\uFF08${response.status}\uFF09`);
   let text2 = await response.text();
   __hgDbg("v551 POST ep=" + episodeId + " status=" + response.status + " len=" + text2.length);
-  if (!text2.trim() && Date.now() - __hgLastForceReg > 5 * 60 * 1000) {
+  if (!text2.trim() && Date.now() - __hgLastForceReg > 10 * 60 * 1000) {
     __hgLastForceReg = Date.now();
     __hgDbg("v551 POST empty -> fresh identity retry");
     identity = await registerPlayer(true);
@@ -19522,7 +19528,16 @@ async function registeredPlayback(episodeId) {
   }
   if (!text2.trim()) {
     __hgPbEmpty++;
-    if (__hgPbEmpty >= 3) __hgPbBlockedUntil = Date.now() + 3 * 60 * 1000;
+    if (__hgPbEmpty >= 2) {
+      __hgPbBlockedUntil = Date.now() + 90 * 1000;
+      try {
+        require("node:fs").unlinkSync(__hgRegCachePath());
+        __hgDbg("identity rotated after empty responses");
+      } catch {
+      }
+      __hgRegBlockedUntil = 0;
+      __hgPbEmpty = 0;
+    }
     throw new AppError("API_EMPTY", "\u672C\u96C6\u64AD\u653E\u8D44\u6E90\u8FD4\u56DE\u7A7A\u7ED3\u679C\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u5F53\u524D\u96C6");
   }
   if (text2.length > 8 * 1024 * 1024) throw new AppError("API_FORMAT", "\u64AD\u653E\u8D44\u6E90\u54CD\u5E94\u8FC7\u5927");
