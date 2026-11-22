@@ -9,14 +9,15 @@ export function playbackDuration(resource:Pick<Playback,'duration'|'progressive'
  return Number.isFinite(browserDuration)&&browserDuration>0?Math.max(browserDuration,source):source||fallback;
 }
 
-export async function completedResumeResource(options:{episodeId:string;url:string;getState:()=>Promise<BufferState>;getPlayback:()=>Promise<Playback>;isCurrent:()=>boolean}):Promise<Playback|undefined>{
+export async function completedResumeResource(options:{episodeId:string;getState:()=>Promise<BufferState>;getPlayback:()=>Promise<Playback>;isCurrent:()=>boolean}):Promise<Playback|undefined>{
  const state=await options.getState();
  // A progressive job is already active when its Playback is returned. Once it
  // disappears without failures, a ready entry can be queried without forcing a
  // new transfer. The returned identity is still checked before replacing it.
  if(!options.isCurrent()||state.ready<1||state.failed||!state.activities||state.activities.some(item=>item.episodeId===options.episodeId))return;
  const playback=await options.getPlayback();
- if(options.isCurrent()&&!playback.progressive&&playback.episodeId===options.episodeId&&playback.url===options.url){
+ if(options.isCurrent()&&!playback.progressive&&playback.episodeId===options.episodeId){
+  // Recovery may finish under a new cache key; the live request and episode checks own identity.
   // Chromium can retain the finite first fragment across load() on the same URL.
   // A completed-cache URL forces metadata and ranges to be read from the full file.
   const url=new URL(playback.url);url.searchParams.set('complete','1');

@@ -438,7 +438,7 @@ function Player({ session,endOverlay,onManualStart,rate, onRateChange, series, e
     const poll=async()=>{
       if(busy||!isCurrent())return;busy=true;
       try{
-        const complete=await completedResumeResource({episodeId:episode.id,url:resource.url,isCurrent,
+        const complete=await completedResumeResource({episodeId:episode.id,isCurrent,
           getState:()=>call(()=>window.desktop.bufferState()),getPlayback:()=>call(()=>window.desktop.playback(episode.id,false,quality))});
         if(complete&&isCurrent()){
           desiredTime.current=pendingResume.current!;streamComplete.current=true;setResource(complete);

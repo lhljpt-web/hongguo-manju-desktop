@@ -1,3 +1,4 @@
+import {encodingRateArgs} from './encoding-budget';
 import {randomUUID,createHash} from 'node:crypto';import {spawn} from 'node:child_process';import {mkdir,writeFile,readFile,stat,statfs,unlink,rename,readdir,open,copyFile} from 'node:fs/promises';import {createReadStream,constants} from 'node:fs';import {Readable} from 'node:stream';import path from 'node:path';
 import type {Resource,Playback,BufferState,CacheActivity,VideoQuality,CachePriority} from '../shared/types';import {AppError} from './errors';import {validId} from './library';
 import {downloadMedia} from './resumable-download';import {GrowingMedia,ProgressiveEncoder,streamableMp4} from './progressive';import {TransferLimiter} from './transfer-limits';import {Diagnostics} from './diagnostics';
@@ -330,7 +331,7 @@ export class MediaCache {
  private transcode(input:string,output:string,key:Buffer|null,duration:number,signal:AbortSignal,report:(percent:number)=>void,copy=false):Promise<void>{
   check(signal);
   return new Promise((resolve,reject)=>{
-    const args=['-hide_banner','-loglevel','error','-nostats','-progress','pipe:1',...(key?['-decryption_key',key.toString('hex')]:[]),'-i',input,...(copy?['-c:v','copy']:['-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-threads','2','-crf','20']),'-c:a','aac','-movflags','+faststart','-fs',String(FILE_LIMIT+1),'-y',output];
+    const args=['-hide_banner','-loglevel','error','-nostats','-progress','pipe:1',...(key?['-decryption_key',key.toString('hex')]:[]),'-i',input,...(copy?['-c:v','copy']:['-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-threads','2','-crf','20',...encodingRateArgs(duration,FILE_LIMIT)]),'-c:a','aac','-movflags','+faststart','-fs',String(FILE_LIMIT+1),'-y',output];
    const child=spawn(this.ffmpeg,args,{windowsHide:true,stdio:['ignore','pipe','pipe']});let progress='';
    const abort=()=>{child.kill()};signal.addEventListener('abort',abort,{once:true});
    const timeout=setTimeout(()=>child.kill(),180000);

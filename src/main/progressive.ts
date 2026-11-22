@@ -1,3 +1,4 @@
+import {encodingRateArgs} from './encoding-budget';
 import {open,stat} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {AppError} from './errors';
@@ -43,7 +44,7 @@ export class ProgressiveEncoder{
  private readyResolve!:()=>void;private readyReject!:(error:unknown)=>void;
  constructor(ffmpeg:string,private output:string,key:Buffer|null,duration:number,codec:string,signal:AbortSignal,report:(percent:number)=>void){
   this.ready=new Promise((resolve,reject)=>{this.readyResolve=resolve;this.readyReject=reject});void this.ready.catch(()=>{});
-  const args=['-hide_banner','-loglevel','error','-nostats','-progress','pipe:1',...(key?['-decryption_key',key.toString('hex')]:[]),'-i','pipe:0',...(['h264','avc1'].includes(codec)?['-c:v','copy']:['-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-threads','2','-crf','20']),'-c:a','aac','-movflags','+empty_moov+default_base_moof','-frag_duration','500000','-flush_packets','1','-y',output];
+  const args=['-hide_banner','-loglevel','error','-nostats','-progress','pipe:1',...(key?['-decryption_key',key.toString('hex')]:[]),'-i','pipe:0',...(['h264','avc1'].includes(codec)?['-c:v','copy']:['-vf','scale=trunc(iw/2)*2:trunc(ih/2)*2','-c:v','libx264','-preset','veryfast','-threads','2','-crf','20',...encodingRateArgs(duration,150*1024*1024)]),'-c:a','aac','-movflags','+empty_moov+default_base_moof','-frag_duration','500000','-flush_packets','1','-y',output];
   this.child=spawn(ffmpeg,args,{windowsHide:true,stdio:['pipe','pipe','pipe']});let progress='',actual=0,polling=false;
   const child=this.child,abort=()=>child.kill();signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();
   const inspect=async()=>{if(polling||this.stopped)return;polling=true;try{const info=await stat(output);if(info.size>150*1024*1024){child.kill();return}if(!this.readyDone&&info.size>1024){const h=await open(output,'r');try{const buffer=Buffer.alloc(Math.min(info.size,256*1024));await h.read(buffer,0,buffer.length,0);if(buffer.includes(Buffer.from('moof'))&&buffer.includes(Buffer.from('mdat'))){this.readyDone=true;this.readyResolve()}}finally{await h.close()}}}catch{}finally{polling=false}};
