@@ -16998,7 +16998,9 @@ var ProgressiveEncoder = class {
     });
     void this.ready.catch(() => {
     });
-    const args = ["-hide_banner", "-loglevel", "error", "-nostats", "-xerror", "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], "-i", "pipe:0", ...["h264", "avc1"].includes(codec) ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs && hwArgs.length ? hwArgs : ["-c:v", "libx264", "-preset", "veryfast", "-threads", String(threads || 2), "-crf", "20"])], "-c:a", "aac", "-movflags", "+empty_moov+default_base_moof", "-frag_duration", "500000", "-flush_packets", "1", "-y", output];
+    const copyVideo = ["h264", "avc1"].includes(codec);
+    const rateArgs = __hgEncodingRateArgs(duration, 150 * 1024 * 1024);
+    const args = ["-hide_banner", "-loglevel", "error", "-nostats", "-xerror", "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], "-i", "pipe:0", ...copyVideo ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs && hwArgs.length ? hwArgs : ["-c:v", "libx264", "-preset", "veryfast", "-threads", String(threads || 2), "-crf", "20"]), ...rateArgs], "-c:a", "aac", ...copyVideo ? rateArgs : [], "-movflags", "+empty_moov+default_base_moof", "-frag_duration", "500000", "-flush_packets", "1", "-y", output];
     this.child = (0, import_node_child_process.spawn)(ffmpeg, args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let progress = "", actual = 0, polling = false;
     const child2 = this.child, abort = () => child2.kill();
@@ -17177,6 +17179,12 @@ function decodeContentKey(encoded) {
   return Buffer.from(key, "hex");
 }
 var CACHE_POLICY = "highest-resolution-crf20-v1";
+// 0.1.7: 按时长给编码器设峰值码率，避免长分集撞 150 MiB 上限被 -fs 截断。
+function __hgEncodingRateArgs(duration, maxBytes) {
+  const audioRate = 128000;
+  const videoRate = Math.max(200000, Math.floor(maxBytes * 8 * 0.9 / (duration + 2) - audioRate));
+  return ["-maxrate", String(videoRate), "-bufsize", String(videoRate * 2), "-b:a", String(audioRate)];
+}
 var CACHE_LIMIT = 1024 * 1024 * 1024;
 var FILE_LIMIT = 150 * 1024 * 1024;
 var SPACE_RESERVE = 1024 * 1024 * 1024;
@@ -18224,7 +18232,7 @@ var MediaCache = class {
       const hwEncode = !copy && !fast && this.decodeMode !== 2 && this.hw && Array.isArray(this.hw.args) && this.hw.args.length;
       const hwDecode = !copy && !fast && (this.decodeMode === 1 || this.decodeMode === 3) && this.hw;
       const hwArgs = hwEncode ? this.hw.args : null;
-      const videoArgs = copy ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs || ["-c:v", "libx264", "-preset", fast ? "ultrafast" : "veryfast", "-threads", String(fast ? 1 : this.decodeThreads), "-crf", "20"])];
+      const videoArgs = copy ? ["-c:v", "copy"] : ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", ...(hwArgs || ["-c:v", "libx264", "-preset", fast ? "ultrafast" : "veryfast", "-threads", String(fast ? 1 : this.decodeThreads), "-crf", "20"]), ...__hgEncodingRateArgs(duration, FILE_LIMIT)];
       const args = ["-hide_banner", "-loglevel", "error", "-nostats", ...copy ? [] : ["-xerror"], "-progress", "pipe:1", ...key ? ["-decryption_key", key.toString("hex")] : [], ...hwDecode ? ["-hwaccel", this.hw.name === "h264_qsv" ? "qsv" : "auto"] : [], "-i", input, ...videoArgs, "-c:a", "aac", "-movflags", "+faststart", "-fs", String(FILE_LIMIT + 1), "-y", output];
       const child2 = (0, import_node_child_process2.spawn)(this.ffmpeg, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
       let progress = "";
