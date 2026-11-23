@@ -9,6 +9,13 @@ sessions, media addresses, account credentials or SDK are included. Public wire
 constants are algorithm parameters. Offline oracle tests use synthetic inputs and
 store only SHA-256 digests, not request signatures.
 
+Updated 2026-11-23 with bodyless GET support from the same module at
+[`92df757ed7be8ea658ee274a6a429b77f49e54e8`](https://github.com/jackotom/hongguo-drama/blob/92df757ed7be8ea658ee274a6a429b77f49e54e8/src/native/playback-v5.js).
+That update credits ch6vip/novel-sound 1.0.205 for the current video_tab GET wire
+format. GET signs the empty-body digest and omits POST-only headers. Existing
+POST wire headers are retained for compatibility. Synthetic GET oracle digests
+were independently generated from that pinned module with Node's SM3 backend.
+
 `playback-signature-551.js` adapts the playback-only Argus/Ladon module from
 [`jackotom/hongguo-drama`, commit `3f5927d0d605ff7742fde8cbd1bb92ffe951b080`](https://github.com/jackotom/hongguo-drama/blob/3f5927d0d605ff7742fde8cbd1bb92ffe951b080/src/native/playback-signature.js), GPL-3.0-only.
 Its header attributes N3urda/hongguoTV `7444bb01aec7b0420740103e551c45f1f66101c9`
