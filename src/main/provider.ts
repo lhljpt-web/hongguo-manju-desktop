@@ -96,9 +96,9 @@ export class ContentProvider {
     this.searchPage = options.searchPage;
   }
 
-  private async api(path: string, body?: unknown, extra?: Record<string, string | number | boolean>): Promise<RecordData> {
+  private async api(path: string, body?: unknown, extra?: Record<string, string | number | boolean>,signal?:AbortSignal): Promise<RecordData> {
     let response: any;
-    try { response = await this.transport.request(path, body, extra); }
+    try { response = await this.transport.request(path, body, extra,signal); }
     catch (error) {
       if (error instanceof Error && 'code' in error && typeof error.code === 'string' && /^[A-Z0-9_]{1,50}$/.test(error.code)) throw error;
       fail('NETWORK_ERROR', '内容接口请求失败，请稍后重试。');
@@ -279,13 +279,13 @@ export class ContentProvider {
   }
 
   // Internal main-process API. Never forward this object to the renderer or persist it in history.
-  async getResource(episodeId: string,quality:VideoQuality='auto'): Promise<Resource> {
+  async getResource(episodeId: string,quality:VideoQuality='auto',signal?:AbortSignal): Promise<Resource> {
     identifier(episodeId, 'EPISODE');
     if(quality!=='auto'&&!QUALITY_ORDER.includes(quality))fail('INVALID_QUALITY','画质选项无效。');
     let data: RecordData;
     try {
       data = await this.api('/novel/player/video_model/v1/', { video_id: episodeId, content_type: 1,
-        biz_param: { need_all_video_definition: true, video_platform: 3 } });
+        biz_param: { need_all_video_definition: true, video_platform: 3 } },undefined,signal);
     } catch (error) {
       // The native gateway now returns HTTP 200 with an empty body. Use the
       // site's own public compatibility player; preserve unrelated failures.

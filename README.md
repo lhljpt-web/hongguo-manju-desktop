@@ -2,11 +2,11 @@
 
 Windows 上的第三方漫剧客户端。找剧、播放、缓存，接着上次的进度继续看。
 
-**[下载 0.1.8 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.8/Hongguo-Manju-0.1.8-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.8) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
+**[下载 0.1.9 正式版 · Windows x64](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/download/v0.1.9/Hongguo-Manju-0.1.9-Windows-x64.exe)** · [发布说明与校验](https://github.com/lhljpt-web/hongguo-manju-desktop/releases/tag/v0.1.9) · [安装指南](docs/installation.md) · [反馈问题](https://github.com/lhljpt-web/hongguo-manju-desktop/issues)
 
 支持 Windows 10 / 11 x64。安装包自带运行组件，无需手机、模拟器或额外配置开发环境。
 
-0.1.8 适配当前播放取流格式，恢复本轮原先仅返回预览或空结果的目标分集；保留长集完整缓存及续播修复。[验证记录](docs/playback-fix-2026-11-23.md)
+0.1.9 恢复当前完整分集取源，保留长集缓存与续播修复。首次联网播放会准备本地匿名取源组件。[验证记录](docs/playback-fix-2026-11-25.md)
 
 > 本项目独立维护，与红果官方及其运营方无隶属或合作关系。作品、品牌和媒体资源归相应权利方所有。
 
@@ -65,7 +65,7 @@ npm run build
 
 准备 runtime-bundle 后，npm test 还会执行真实 FFmpeg 码率预算回归；缺少运行组件时仅跳过该项。
 
-准备好运行组件后可执行 npm start 或 npm run package:win。自动更新与发布校验见 [维护说明](docs/auto-update.md)。历史故障调查与验证记录保存在 docs 目录，不代表当前版本的全部可用范围。
+执行 `npm run runtime:sdk` 准备固定版本的 Windows 取源组件；打包命令会自动执行此步骤。准备好运行组件后可执行 npm start 或 npm run package:win。自动更新与发布校验见 [维护说明](docs/auto-update.md)。历史故障调查与验证记录保存在 docs 目录，不代表当前版本的全部可用范围。
 
 ## 参考与致谢
 

@@ -1,6 +1,6 @@
 {
   "name": "hongguo-manju-desktop",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-only",
@@ -16,10 +16,11 @@
     "build": "node scripts/build-main.mjs && vite build",
     "start": "electron .",
     "runtime": "node scripts/prepare-runtime.mjs",
-    "package:win": "npm run build && electron-builder --win --x64",
+    "package:win": "npm run runtime:sdk && npm run build && electron-builder --win --x64",
     "release:verify": "node scripts/verify-update-release.mjs",
     "probe": "node scripts/probe.mjs",
-    "probe:signed": "node scripts/signed-probe.mjs"
+    "probe:signed": "node scripts/signed-probe.mjs",
+    "runtime:sdk": "node scripts/prepare-sdk-playback.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

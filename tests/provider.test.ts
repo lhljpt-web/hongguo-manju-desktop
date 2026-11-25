@@ -10,7 +10,7 @@ const detail = () => ({ code: 0, data: { [SID]: { video_data: {
   video_list: [{ vid: '7695386808800005145', vid_index: 2, duration: 45 }, { vid: VID, vid_index: 1, duration: 60 }],
 } } } });
 const errorCode = (code: string) => (error: any) => error.code === code;
-const transport = (respond: (path: string, body?: any, extra?: any) => any): ApiTransport => ({ request: async (...args) => respond(...args) });
+const transport = (respond: (path: string, body?: any, extra?: any, signal?:AbortSignal) => any): ApiTransport => ({ request: async (...args) => respond(...args) });
 const make = (api: ApiTransport, fetcher?: typeof fetch) => {
   assert.equal(typeof providerModule.ContentProvider, 'function');
   return new providerModule.ContentProvider(api, fetcher ? { fetch: fetcher } : undefined);

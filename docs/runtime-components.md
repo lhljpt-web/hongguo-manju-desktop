@@ -31,3 +31,12 @@
 生成结构为 `runtime-bundle/{java,classes,dependencies.jar,sdk,ffmpeg.exe,notices}`。`notices/build-manifest.json` 记录构建输入摘要、过滤后的 JAR 摘要、剔除清单以及验证信息。仅在编译、jlink、进程验证全部通过后替换旧 bundle。
 
 验证在同一个签名进程中连续发送两个实际签名请求，中间插入一条无效 JSON；检查两次均返回 X-Argus/X-Gorgon 等非空字段、错误请求得到固定错误码、每行只有 JSON、stderr 为空、EOF 正常退出。测试仅输出字段名和长度，绝不记录签名值。这证明当前本机桥接可连续工作，不证明远程接口、未来 SDK 版本或全新 Windows 电脑必然可用。
+
+
+## 0.1.9 Windows 完整分集取源组件
+
+`npm run runtime:sdk` 使用既有 Node.js 与 electron-builder 的 7-Zip，下载并校验固定的 `jackotom/hongguo-drama v8.2` Windows 附件，只提取 `hongguo-sdk-playback.exe`。不会运行或安装参考项目的客户端。所有下载与可执行文件摘要固定于 `scripts/sdk-playback-assets.json`；打包钩子再次核对 helper 摘要。输出目录 `sdk-playback/` 不进入 Git。
+
+主进程以 `--videos <目标分集编号> --cache <本机数据目录/sdk-playback>` 调用组件，只接受以该编号为键的模型，并交给既有画质、加密格式、完整时长与解码校验。输出和错误正文不进入日志。首次使用由 helper 从官方应用获取并校验所需输入；本机匿名设备及 SDK 状态仅写入此独立目录，不复制或替换旧播放标识，也不接入手机账号。退出和安装更新前停止本应用拥有的 helper 进程树。
+
+脚本同时准备固定的上游 Windows 对应源码及 Unicorn、PyInstaller、Requests、PyCryptodome 和传递依赖的准确源码分发包，位于 `work/sdk-playback/v8.2/sources`。每次正式发行须将该目录归档为 `Hongguo-Manju-<版本>-sdk-sources.zip`，与安装包一同上传并纳入 SHA256SUMS。原始许可从这些源码包提取至发行组件的 notices；重建入口及来源见 `build/sdk-playback/README.txt`。这些源码不含官方 SDK 运行材料、设备状态、签名或剧集媒体。

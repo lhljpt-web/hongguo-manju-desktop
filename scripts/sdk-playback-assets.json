@@ -1,0 +1,136 @@
+{
+  "upstream": "jackotom/hongguo-drama",
+  "release": "v8.2",
+  "binaryArchive": {
+    "file": "hongguo-downloader-8.2-win-x64.zip",
+    "url": "https://github.com/jackotom/hongguo-drama/releases/download/v8.2/hongguo-downloader-8.2-win-x64.zip",
+    "sha256": "1d3e79eae1f5aa945236375fa3b4b147d5c86d58469841433c3a412817db557a"
+  },
+  "sourceArchive": {
+    "file": "hongguo-downloader-8.2-windows-source.zip",
+    "url": "https://github.com/jackotom/hongguo-drama/releases/download/v8.2/hongguo-downloader-8.2-windows-source.zip",
+    "sha256": "d675864e9dd4580dfd58b3963a1709b31d2608cbd92b7c81a1eb3dfeff3c7a23"
+  },
+  "portable": "hongguo-downloader-8.2-win-x64.exe",
+  "helperPath": "resources/app.asar.unpacked/build/sdk-playback/win32-x64/hongguo-sdk-playback.exe",
+  "helperSha256": "32c9e50ed811145243207415c762b619f37082166d0aa50654d849a51e28f512",
+  "dependencies": [
+    {
+      "name": "unicorn",
+      "version": "2.1.4",
+      "file": "unicorn-2.1.4.tar.gz",
+      "sha256": "00567a70e323f749b419cd86bee4f9115beab7ebba32194581c090cbb7c59cff",
+      "license": "GPL-2.0 engine; BSD Python bindings; LGPL-2.0 headers",
+      "source": "https://files.pythonhosted.org/packages/b2/1b/b4248aa8422e86de690cf8e85cf8feae4c33405a097d1ebe71570bdaa6f5/unicorn-2.1.4.tar.gz",
+      "pypiLicense": "BSD License"
+    },
+    {
+      "name": "pyinstaller",
+      "version": "6.22.3",
+      "file": "pyinstaller-6.22.3.tar.gz",
+      "sha256": "05eb2f5615503e72939a7224d68b4aff572c6b0438ee4a17d0a4b481f399362d",
+      "license": "GPLv2-or-later with a special exception which allows to use PyInstaller to build and distribute non-free programs (including commercial ones)",
+      "source": "https://files.pythonhosted.org/packages/63/41/f90302845945abd4ed647933ff5ee7c6ac93983187be67f897b6cb613331/pyinstaller-6.22.3.tar.gz"
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "file": "requests-2.34.2.tar.gz",
+      "sha256": "f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed",
+      "license": "Apache-2.0",
+      "source": "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz"
+    },
+    {
+      "name": "pycryptodome",
+      "version": "4.6.0",
+      "file": "pycryptodome-4.6.0.tar.gz",
+      "sha256": "b1c813476d8977edc91a57f5e9ef7611367d5c5361054fe2de152e3e47dd423d",
+      "license": "BSD-2-Clause AND Unlicense AND MIT",
+      "source": "https://files.pythonhosted.org/packages/e2/13/0ad2965295054c711bfed90f2b983480fe9d1eb71d1e999d6fbbfcf097f7/pycryptodome-4.6.0.tar.gz"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.3",
+      "file": "charset_normalizer-3.5.3.tar.gz",
+      "sha256": "a250888753faa289e2997962fbb17c4960cbdb58575533ca6fceee68c224bdff",
+      "license": "MIT",
+      "source": "https://files.pythonhosted.org/packages/c2/c3/cae6d3bdefd96a941ffc247c714ac4babc488a69012e11c058f6c17c6c47/charset_normalizer-3.5.3.tar.gz"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "file": "urllib3-2.8.0.tar.gz",
+      "sha256": "63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63",
+      "license": "MIT",
+      "source": "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz"
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "file": "idna-3.20.tar.gz",
+      "sha256": "a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44",
+      "license": "BSD-3-Clause",
+      "source": "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.11.20",
+      "file": "certifi-2026.11.20.tar.gz",
+      "sha256": "af1cb240a8133f105aa52684a3a3258339d7f2fd0bd4e2812698ff5cf5588c4e",
+      "license": "MPL-2.0",
+      "source": "https://files.pythonhosted.org/packages/51/33/4cd27639502f010084bcef7a2036391dd637439901341ce1a530f36f6e51/certifi-2026.11.20.tar.gz"
+    },
+    {
+      "name": "setuptools",
+      "version": "65.5.0",
+      "file": "setuptools-65.5.0.tar.gz",
+      "sha256": "512e5536220e38146176efb833d4a62aa726b7bbff82cfbc8ba9eaa3996e0b17",
+      "license": "",
+      "source": "https://files.pythonhosted.org/packages/c5/41/247814d8b7a044717164c74080725a6c8f3d2b5fc82b34bd825b617df663/setuptools-65.5.0.tar.gz"
+    }
+  ],
+  "licenses": [
+    {
+      "file": "PYTHON-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/LICENSE",
+      "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+    },
+    {
+      "file": "UNICORN-COPYING.txt",
+      "url": "https://raw.githubusercontent.com/unicorn-engine/unicorn/2.1.4/COPYING",
+      "sha256": "6f04ae8364d0079a192b14635f4b1da294ce18724c034c39a6a41d1b09df6100"
+    },
+    {
+      "file": "UNICORN-LGPL2.txt",
+      "url": "https://raw.githubusercontent.com/unicorn-engine/unicorn/2.1.4/COPYING.LGPL2",
+      "sha256": "b7993225104d90ddd8024fd838faf300bea5e83d91203eab98e29512acebd69c"
+    }
+  ],
+  "sourceMembers": [
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "scripts/build-sdk-playback-win.ps1",
+    "scripts/sdk-playback/vendor/SOURCE.md",
+    "scripts/sdk-playback/resolve_cli.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_account_device.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_account_medusa.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_account_medusa_cipher.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_account_medusa_digest.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_playback_digest_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_playback_medusa_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_playback_request_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_playback_signing_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_assets_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_bootstrap_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_core_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_exchange_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_materials_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_recovery_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/phone_sdk_session_v5.py",
+    "scripts/sdk-playback/vendor/phone_account/medusa_wire_tables.json",
+    "scripts/sdk-playback/vendor/phone_account/vendor/TTEncrypt.py",
+    "scripts/sdk-playback/vendor/phone_account/vendor/pkcs7_padding.py",
+    "scripts/sdk-playback/vendor/phone_account/vendor/XGorgon.py",
+    "scripts/sdk-playback/vendor/phone_account/vendor/XLadon.py"
+  ]
+}

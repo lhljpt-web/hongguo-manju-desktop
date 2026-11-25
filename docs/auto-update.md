@@ -15,7 +15,7 @@ Windows 正式安装版会在启动约 2 秒后自动检查更新，运行期间
 1. 修改 `package.json` 与锁文件中的版本号，完成测试、类型检查和构建。
 2. 在具备完整 `runtime-bundle` 的 Windows 机器上执行 `npm run package:win -- --publish never`（或构建后执行 `npx electron-builder --win --x64 --publish never`）。
 3. 执行 `npm run release:verify`，核对 `latest.yml` 版本、安装文件名、SHA-512 和安装包内的 GitHub provider。不要手工复制旧版元数据。
-4. 将同批 `.exe` 和 `latest.yml` 上传到同一个版本 Release；源码归档、SHA256SUMS 可一并提供。先建草稿并上传完整附件，再公开发布，避免客户端发现缺少元数据的新版本。
+4. 将同批 `.exe` 和 `latest.yml` 上传到同一个版本 Release；同时提供本项目源码归档、`*-sdk-sources.zip` 对应源码及涵盖全部附件的 SHA256SUMS。先建草稿并上传完整附件，再公开发布，避免客户端发现缺少元数据的新版本。
 5. 保持递增的 `vX.Y.Z` 标签；当前客户端关闭 `allowPrerelease`，只接收正式发行版。不上传 token、开发配置或本地测试更新源。
 
 当前使用完整 NSIS 安装包，未启用差分更新。`latest.yml` 是自动更新必需文件；仅上传 exe 会导致旧客户端检查失败。程序使用 electron-updater 的版本比较、GitHub provider、SHA-512 校验和 NSIS 升级实现，见 [官方更新文档](https://www.electron.build/features/auto-update)。

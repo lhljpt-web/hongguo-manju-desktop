@@ -11,6 +11,7 @@ research/runtime/
 dist/
 release/
 runtime-bundle/
+/sdk-playback/
 image-output/
 # Upload only reviewed reports, never APKs, SDKs, cached media or raw captures.
 research/*

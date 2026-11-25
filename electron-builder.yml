@@ -11,6 +11,8 @@ files:
 extraResources:
   - from: runtime-bundle
     to: runtime-bundle
+  - from: sdk-playback
+    to: sdk-playback
 asar: true
 publish:
   provider: github

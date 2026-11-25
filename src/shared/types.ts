@@ -66,5 +66,5 @@ export interface DesktopApi {
  onUpdate(listener: (state: UpdateState) => void): () => void;
 }
 export interface Resource { episodeId: string; duration: number; definition: string; codec: string; encrypted: boolean; spade?: string; url: string; size: number;availableQualities?:string[] }
-export interface ApiTransport { request(path: string, body?: unknown, extra?: Record<string,string|number|boolean>): Promise<any> }
+export interface ApiTransport { request(path: string, body?: unknown, extra?: Record<string,string|number|boolean>, signal?:AbortSignal): Promise<any> }
 declare global { interface Window { desktop: DesktopApi } }

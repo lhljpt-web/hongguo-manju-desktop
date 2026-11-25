@@ -15,7 +15,7 @@ try {
   $mainPath=[IO.Path]::Combine($installRoot,$AppExecutable)
   Report ('Checking installed components: '+$mainPath)
   $runtimeRoot=[IO.Path]::Combine($installRoot,'resources','runtime-bundle')
-  $workerPaths=@([IO.Path]::Combine($runtimeRoot,'java','bin','java.exe'),[IO.Path]::Combine($runtimeRoot,'ffmpeg.exe'))
+  $workerPaths=@([IO.Path]::Combine($runtimeRoot,'java','bin','java.exe'),[IO.Path]::Combine($runtimeRoot,'ffmpeg.exe'),[IO.Path]::Combine($installRoot,'resources','sdk-playback','hongguo-sdk-playback.exe'))
   function Get-InstalledProcesses {
     # ExecutablePath is available on Win32_Process; never match by image name alone.
     Get-CimInstance -ClassName Win32_Process | Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -eq $mainPath -or $workerPaths -contains $_.ExecutablePath) }

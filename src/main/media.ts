@@ -66,7 +66,7 @@ export class MediaCache {
  private deletionMetadata=new Map<string,string>();
  private transferStarted=0;
  private quality:VideoQuality='auto';private maxBytes=0;private limiter=new TransferLimiter();private growing=new Map<string,GrowingMedia>();private partialBytes=new Map<string,number>();
- constructor(private directory:string,private ffmpeg:string,private getResource:(id:string,quality?:VideoQuality)=>Promise<Resource>,private options:{freeBytes?:()=>Promise<number>;concurrency?:number;diagnostics?:Diagnostics;progressive?:boolean}={}){}
+ constructor(private directory:string,private ffmpeg:string,private getResource:(id:string,quality?:VideoQuality,signal?:AbortSignal)=>Promise<Resource>,private options:{freeBytes?:()=>Promise<number>;concurrency?:number;diagnostics?:Diagnostics;progressive?:boolean}={}){}
  async init(){await mkdir(this.directory,{recursive:true});for(const name of await readdir(this.directory)){
   if(/^[a-f0-9]{32}\.json$/.test(name)){try{const e=JSON.parse(await readFile(path.join(this.directory,name),'utf8'));if(e.policy===CACHE_POLICY&&validId(e.episodeId)&&Number.isFinite(e.duration)&&e.duration>0&&typeof e.definition==='string'&&e.key===name.slice(0,32)){e.file=path.join(this.directory,e.key+'.mp4');const info=await stat(e.file);if(info.size>0&&info.size<=FILE_LIMIT){e.bytes=info.size;this.entries.set(e.episodeId,e)}}}catch{}}
   if(/^[a-f0-9]{32}\.(?:input|working)\.mp4$/.test(name))await unlink(path.join(this.directory,name)).catch(()=>{});
@@ -263,7 +263,7 @@ export class MediaCache {
   const signal=job.controller.signal;let last:unknown;
   for(let attempt=0;attempt<2;attempt++){
    check(signal);
-   try{job.progress={stage:'resolving'};await this.ensureSpace(signal);const start=Date.now(),resource=await abortable(this.getResource(job.id,job.quality),signal);this.options.diagnostics?.record({stage:'resolve',code:'OK',ms:Date.now()-start});check(signal);if(!Number.isSafeInteger(resource.size)||resource.size<=0||resource.size>FILE_LIMIT)throw new AppError('UNSUPPORTED_RESOURCE','播放资源不完整或大小暂不支持');job.capacityBytes=resource.size;job.capacityCommitted=false;this.checkBudget(job);return await this.create(resource,signal,progress=>{if(!signal.aborted)job.progress=progress},job,attempt===0)}
+   try{job.progress={stage:'resolving'};await this.ensureSpace(signal);const start=Date.now(),resource=await abortable(this.getResource(job.id,job.quality,signal),signal);this.options.diagnostics?.record({stage:'resolve',code:'OK',ms:Date.now()-start});check(signal);if(!Number.isSafeInteger(resource.size)||resource.size<=0||resource.size>FILE_LIMIT)throw new AppError('UNSUPPORTED_RESOURCE','播放资源不完整或大小暂不支持');job.capacityBytes=resource.size;job.capacityCommitted=false;this.checkBudget(job);return await this.create(resource,signal,progress=>{if(!signal.aborted)job.progress=progress},job,attempt===0)}
    catch(error){last=error;this.options.diagnostics?.record({stage:'playback',code:error instanceof AppError?error.code:'UNKNOWN'});if(signal.aborted||this.closing)throw cancelled();if(error instanceof AppError&&['DISK_SPACE','DISK_CHECK','CACHE_BUDGET','NETWORK'].includes(error.code))throw error}
   }
   throw last;

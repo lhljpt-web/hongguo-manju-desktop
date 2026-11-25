@@ -2,6 +2,7 @@ import {mkdirSync} from 'node:fs';import {mkdir,readFile,writeFile} from 'node:f
 import {spawn, type ChildProcessWithoutNullStreams} from 'node:child_process';import {createInterface} from 'node:readline';import {createHash,randomInt} from 'node:crypto';import path from 'node:path';
 import type {ApiTransport} from '../shared/types';import {AppError} from './errors';
 import {registeredPlayback} from './registered-playback';
+import type {SdkPlayback} from './sdk-playback';
 import {signPlayback} from './vendor/playback-signing.js';
 type Reply={seq:number;headers?:Record<string,string>;error?:string};
 export class Signer {
@@ -37,7 +38,7 @@ export class Signer {
 export class Transport implements ApiTransport {
  private playerIdentity?:Promise<{device_id:string;iid:string}>;
 
- constructor(private signer:Signer,private profileDirectory=path.join(tmpdir(),'hongguo-runtime')){}
+ constructor(private signer:Signer,private profileDirectory=path.join(tmpdir(),'hongguo-runtime'),private sdk?:SdkPlayback){}
  private identity(){
   return this.playerIdentity??=(async()=>{
    const file=path.join(this.profileDirectory,'player-profile.json');
@@ -57,9 +58,14 @@ export class Transport implements ApiTransport {
    }catch{throw new AppError('PLAYER_PROFILE','播放标识无法读取或保存，请检查应用数据目录是否可写')}
   })();
  }
- async request(endpoint:string,body?:unknown,extra:Record<string,string|number|boolean>={}):Promise<any>{
+ async request(endpoint:string,body?:unknown,extra:Record<string,string|number|boolean>={},signal?:AbortSignal):Promise<any>{
   if(!/^\/(?:novel\/player\/|reading\/bookapi\/)/.test(endpoint))throw new AppError('INVALID_ENDPOINT','内容接口无效');
   const playback=endpoint==='/novel/player/video_model/v1/';
+  if(playback&&this.sdk){
+   try{return await this.sdk.resolve((body as {video_id:string}).video_id,signal)}
+   catch(error){if(error instanceof AppError&&['CANCELLED','SDK_SHUTDOWN','INVALID_EPISODE'].includes(error.code))throw error}
+  }
+  if(signal?.aborted)throw new AppError('CANCELLED','播放准备已取消');
   let requestBody=body;
   if(playback){
    const value=body as {video_id?:unknown};

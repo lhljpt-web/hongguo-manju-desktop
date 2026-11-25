@@ -5,10 +5,33 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {Signer, Transport} from '../src/main/transport';
 import {ContentProvider} from '../src/main/provider';
+import {SdkPlayback} from '../src/main/sdk-playback';
+import {AppError} from '../src/main/errors';
 
 const VID='7695075636313852953';
 const endpoint='/novel/player/video_model/v1/';
 const body={video_id:VID,content_type:1,biz_param:{need_all_video_definition:true,video_platform:3}};
+test('configured SDK is preferred without changing catalog routing',async t=>fixture(async dir=>{
+ const sdk=new SdkPlayback('unused',dir),signer=new Signer('unused');
+ const wanted={code:0,data:{video_model:{status:10}}};
+ const resolve=t.mock.method(sdk,'resolve',async(id:string)=>{assert.equal(id,VID);return wanted});
+ const sign=t.mock.method(signer,'sign',async()=>{throw Error('catalog signer should not resolve playback')});
+ assert.deepEqual(await new Transport(signer,dir,sdk).request(endpoint,body),wanted);
+ assert.equal(resolve.mock.callCount(),1);assert.equal(sign.mock.callCount(),0);
+}));
+test('SDK cancellation does not start fallback network requests',async t=>fixture(async dir=>{
+ const sdk=new SdkPlayback('unused',dir),signer=new Signer('unused');
+ t.mock.method(sdk,'resolve',async()=>{throw new AppError('CANCELLED','stopped')});
+ const fetch=t.mock.method(globalThis,'fetch',async()=>{throw Error('unexpected fallback')});
+ await assert.rejects(new Transport(signer,dir,sdk).request(endpoint,body),{code:'CANCELLED'});
+ assert.equal(fetch.mock.callCount(),0);
+}));
+test('unavailable SDK preserves the released route and explicit refusal',async t=>fixture(async dir=>{
+ const sdk=new SdkPlayback('unused',dir),signer=new Signer('unused');
+ t.mock.method(sdk,'resolve',async()=>{throw new AppError('SDK_FAILED','unavailable')});
+ t.mock.method(globalThis,'fetch',async()=>Response.json({Code:110001,BaseResp:{StatusCode:110001}}));
+ await assert.rejects(new Transport(signer,dir,sdk).request(endpoint,body),{code:'API_UNAVAILABLE'});
+}));
 async function fixture(run:(dir:string)=>Promise<void>){
  const dir=await mkdtemp(path.join(tmpdir(),'manju-player-profile-'));
  try{await run(dir)}finally{await rm(dir,{recursive:true,force:true})}
